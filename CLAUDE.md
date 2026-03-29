@@ -6,10 +6,6 @@ Beads-backed skills for AI coding harnesses (Claude Code, opencode).
 
 All skills MUST follow: @AGENTS/HARNESS_AGNOSTIC.md
 
-- Every skill has `SKILL.claude.md` and `SKILL.opencode.md` — never a single `SKILL.md` in source
-- Shared workflow logic goes in `phases/` and `agents/` — no harness-specific tool names in those files
-- Each skill's `SKILL.md` is gitignored and generated at install time
-
 ## Token Optimization
 
 All skill content MUST follow: @AGENTS/OPTIMIZED_SKILLS.md

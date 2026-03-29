@@ -1,0 +1,23 @@
+formula = "plan-investigate"
+description = "Ephemeral investigation for plan scoping"
+version = 1
+type = "workflow"
+phase = "vapor"
+
+[vars.objective]
+description = "Plan objective"
+required = true
+
+[vars.plan_dir]
+description = "Plan directory path (e.g., docs/plans/plan-001-dixson3-abc123)"
+required = true
+
+# Steps are injected dynamically -- one per experiment identified
+# during the scoping phase. Each experiment becomes a task bead
+# dispatched to an investigator subagent in a disposable worktree.
+#
+# The wisp lifecycle:
+#   1. Create: bd mol wisp plan-investigate --var ...
+#   2. Inject experiment beads as children
+#   3. Execute: investigator subagents in worktrees
+#   4. Burn: bd mol burn <id> after findings captured

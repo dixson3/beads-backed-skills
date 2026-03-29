@@ -1,0 +1,32 @@
+formula = "plan-execute"
+description = "Plan execution pipeline with upstream reconciliation"
+version = 1
+type = "workflow"
+phase = "liquid"
+
+[vars.objective]
+description = "Plan objective"
+required = true
+
+[vars.plan_dir]
+description = "Plan directory path (e.g., docs/plans/plan-001-dixson3-abc123)"
+required = true
+
+[[steps]]
+id = "start-gate"
+title = "Begin: {{objective}}"
+type = "gate"
+description = "Start gate. Resolve in a new session via /bdplan execute."
+[steps.gate]
+type = "human"
+approvers = ["operator"]
+
+# Execution steps (epics, issues, capability gates) are injected
+# dynamically from plan.md during Phase 4 intake. The intake process
+# reads the plan's Epics and Gates sections and creates bd issues
+# wired to the start gate.
+
+# Reconcile gate and step are also injected during intake, only when
+# upstream issues are incorporated (any non-exclude disposition).
+# The reconcile gate depends on all execution beads and auto-resolves
+# when they close. The reconcile step depends on the reconcile gate.

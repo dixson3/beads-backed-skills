@@ -51,13 +51,13 @@ Decomposes objectives into investigated, scoped plans with beads-tracked executi
 **Setup** per project:
 
 1. `bd init`
-2. Create `PLANS.md` at project root (skill guides on first run)
+2. Create `AGENTS/PLANS.md` (skill bootstraps this on first run)
 3. Add to project instructions file (`CLAUDE.md`, `AGENTS.md`, or `opencode.md`):
 
 ```markdown
 ## Plans
 
-Load Plans workflow from: @PLANS.md
+Load Plans workflow from: @AGENTS/PLANS.md
 
 - All planning work uses the `/bdplan` skill — do not use native plan mode
 - Planning-intent language ("let's design", "let's plan", "how should we build") triggers bdplan implicitly
@@ -87,6 +87,6 @@ See [skills/bdplan/README.md](skills/bdplan/README.md) for full details.
 
 ## Design
 
-Skills follow a harness-agnostic architecture. See [specs/HARNESS_AGNOSTIC.md](specs/HARNESS_AGNOSTIC.md).
+Skills follow a harness-agnostic architecture. See [AGENTS/HARNESS_AGNOSTIC.md](AGENTS/HARNESS_AGNOSTIC.md).
 
 Each skill has thin harness-specific entry points (`SKILL.claude.md`, `SKILL.opencode.md`) and shared content (`phases/`, `agents/`). The install script generates the `SKILL.md` the harness discovers.

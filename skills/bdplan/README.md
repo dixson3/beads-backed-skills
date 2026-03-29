@@ -47,8 +47,8 @@ Optional:
 
 Project must have:
 - `bd init` run (beads database initialized)
-- `PLANS.md` at project root
-- Project instructions file (`CLAUDE.md`, `AGENTS.md`, or `opencode.md`) referencing `PLANS.md`
+- `AGENTS/PLANS.md` in the project
+- Project instructions file (`CLAUDE.md`, `AGENTS.md`, or `opencode.md`) referencing `AGENTS/PLANS.md`
 
 ## Install
 
@@ -116,6 +116,9 @@ formulas/
   plan-execute.formula.toml  Beads molecule for execution pipeline
   plan-investigate.formula.toml  Beads molecule for investigation wisp
 scripts/
-  check-prereqs.sh           Shared prerequisite checks (harness-neutral)
+  check-system.sh            System dep check with JSON output (for bootstrap)
+  check-prereqs.sh           Hard-fail prerequisite checks (standalone use)
   plan_manager.py            Plan CRUD helper (run via uv)
+templates/
+  PLANS.md                   Default planning protocol (copied to AGENTS/PLANS.md during bootstrap)
 ```

@@ -29,9 +29,9 @@ fi
 # 4. Plan directory exists
 mkdir -p docs/plans
 
-# 5. PLANS.md protocol file exists at project root
-if [ ! -f "PLANS.md" ]; then
-  echo "ERROR: PLANS.md not found at project root."
+# 5. PLANS.md protocol file exists
+if [ ! -f "AGENTS/PLANS.md" ]; then
+  echo "ERROR: AGENTS/PLANS.md not found."
   echo "The planning protocol file is required."
   exit 1
 fi

@@ -36,17 +36,35 @@ All skill-internal paths use `${SKILL_DIR}/` prefix.
 | Web search | `websearch` (requires Exa config) |
 | Fetch URL | `webfetch` |
 
-## Prerequisites
+## Bootstrap
 
-```bash
-"${SKILL_DIR}/scripts/check-prereqs.sh"
+**Run on every invocation**, including bare `/bdplan` with no arguments. Complete bootstrap before any other action.
 
-INSTR_FILE=""
-for f in CLAUDE.md AGENTS.md opencode.md OPENCODE.md; do
-  [ -f "$f" ] && grep -q 'PLANS.md' "$f" && { INSTR_FILE="$f"; break; }
-done
-[ -z "$INSTR_FILE" ] && { echo "ERROR: No instructions file references PLANS.md"; exit 1; }
+Print "Checking prerequisites..." then spawn a sub-agent (per Tool Mapping) with this prompt:
+
 ```
+Run bdplan bootstrap checks for opencode:
+
+1. Run ${SKILL_DIR}/scripts/check-system.sh and parse the JSON output.
+2. If status is "ignored", return {"status":"ignored"} immediately.
+3. If status is "system_deps_missing" or "bd_not_initialized", return the JSON as-is. Do nothing else.
+4. mkdir -p docs/plans
+5. mkdir -p AGENTS
+6. If AGENTS/PLANS.md does not exist, copy ${SKILL_DIR}/templates/PLANS.md to ./AGENTS/PLANS.md. Record this action.
+7. Find the project instructions file: check CLAUDE.md, AGENTS.md, opencode.md, OPENCODE.md in order. Use the first that exists.
+8. If no instructions file exists, create AGENTS.md with:
+   ## Plans
+   See AGENTS/PLANS.md for planning protocol.
+   Record this action.
+9. If an instructions file exists but does not reference AGENTS/PLANS.md, append a Plans section referencing AGENTS/PLANS.md. Record this action.
+10. Return JSON: {"status":"ready","actions":["<list of actions taken, empty if none>"]}
+```
+
+Handle the sub-agent result:
+
+- **"ignored"**: bdplan is disabled for this project. Exit the skill silently and fall back to native plan mode.
+- **"ready"**: print any actions taken (e.g., "Initialized PLANS.md", "Updated AGENTS.md"), then continue to the requested phase or show usage.
+- **"system_deps_missing"** or **"bd_not_initialized"**: print the missing items and instructions from the JSON. Ask the user: "Would you like to (1) stop and fix the prerequisites, or (2) ignore bdplan in this project?" If the user chooses to ignore, write `{"ignore-skill":true}` to `.claude/.skill-bdplan/config.local.json` (mkdir -p the directory, ensure `config.local.json` is in `.claude/.skill-bdplan/.gitignore`), then exit the skill and fall back to native plan mode.
 
 **Rule:** All task tracking uses `bd`. Never use built-in todo/task tools, markdown checklists, or inline task lists.
 

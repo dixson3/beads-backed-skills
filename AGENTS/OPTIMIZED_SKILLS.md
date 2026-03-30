@@ -53,6 +53,15 @@ Guidelines for writing skills, agents, phases, and instruction files that minimi
 ### Dispatch over inline for agent behavior
 SKILL.md loads on every invocation; agent files load only when their phase activates. When an agent's behavior exceeds ~15 lines (constraints, output format, evaluation criteria), define it in `agents/<name>.md` and dispatch from SKILL.md with a one-line reference. SKILL.md owns orchestration (when and what to dispatch); agent files own execution (how to perform the work). Don't dispatch trivial behavior — if the dispatch reference is as long as the content, inline it. Corollary: if SKILL.md dispatches to an agent file, it must not also describe the agent's procedure — the agent file is the single source of truth.
 
+### Extract bash that parses structured output
+Inline bash blocks that pipe CLI output through JSON parsing (`cmd --json | python -c "import json..."`) are token-expensive, fragile, and repeated with minor variations. Extract these into a Python script in `scripts/` invoked via `uv run`. The script handles parsing internally and returns only the values the caller needs.
+
+**Extract when:** bash exists primarily to parse JSON, compare versions, or transform structured output between tools. The signal is pipe chains and inline `python -c` one-liners, not raw line count.
+
+**Keep inline when:** bash is a direct CLI invocation the model needs to see (`bd gate resolve`, `gh issue close`, `git pull --rebase`). These are instructions, not logic — wrapping them in a script hides context the model needs for orchestration decisions.
+
+**Prefer Python over bash for scripts when:** the script does JSON parsing, version comparison, or config file I/O. Use `uv run` with PEP 723 inline metadata to keep scripts self-contained with no build step.
+
 ### Shared prerequisites
 Extract common checks into a script. SKILL.md calls the script, then adds skill-specific checks inline.
 

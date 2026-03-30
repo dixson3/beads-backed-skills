@@ -26,13 +26,13 @@ Verification: SKILL.md Pre-flight bullet 2; `_check_prerequisites()` in plan_man
 
 ## plan_manager.py CLI
 
-REQ-CLI-006: `plan_manager.py` exposes 6 subcommands: `check`, `init`, `scope`, `triage`, `list`, `update-status`.
+REQ-CLI-006: `plan_manager.py` exposes 7 subcommands: `check`, `json-get`, `init`, `scope`, `triage`, `list`, `update-status`.
 Rationale: These are the mechanical operations SKILL.md delegates; missing any breaks the wiring.
-Verification: `grep '@cli.command' skills/bdplan/scripts/plan_manager.py` returns 6 matches.
+Verification: `grep '@cli.command' skills/bdplan/scripts/plan_manager.py` returns 7 matches.
 
-REQ-CLI-007: All `plan_manager.py` subcommands that produce output emit JSON to stdout.
-Rationale: SKILL.md parses output with `uv run python -c "import json..."` — non-JSON breaks the pipeline.
-Verification: Every subcommand calls `click.echo(json.dumps(...))`.
+REQ-CLI-007: All `plan_manager.py` subcommands that produce structured output emit JSON to stdout. `check` and `list` default to human-readable but accept `--json-output` for skill use. `json-get` outputs the extracted value (plain text for scalars, JSON for objects/arrays).
+Rationale: SKILL.md parses output via `json-get` or `--json-output` flags — non-JSON in those modes breaks the pipeline.
+Verification: Subcommands producing structured output call `click.echo(json.dumps(...))` or `click.echo(data)` for scalar values.
 
 REQ-CLI-008: `plan_manager.py list --json-output` returns an array of objects with keys `id`, `objective`, `status`, `path`.
 Rationale: SKILL.md Phase 5.1 and Phase 1.1 filter on `status` to find actionable plans.

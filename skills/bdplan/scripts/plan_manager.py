@@ -321,6 +321,34 @@ def check(as_json: bool):
     click.echo("All prerequisites satisfied.")
 
 
+@cli.command("json-get")
+@click.argument("keys", nargs=-1, required=True)
+def json_get(keys: tuple[str, ...]):
+    """Extract a value from JSON on stdin by key path.
+
+    Each argument is one level of nesting:
+      echo '{"a":{"b.c":1}}' | plan_manager.py json-get a "b.c"
+    """
+    try:
+        data = json.load(sys.stdin)
+    except json.JSONDecodeError as e:
+        click.echo(f"ERROR: invalid JSON on stdin: {e}", err=True)
+        sys.exit(1)
+    for key in keys:
+        try:
+            data = data[key]
+        except (KeyError, TypeError, IndexError):
+            click.echo(
+                f"ERROR: key {key!r} not found in path {' -> '.join(keys)}",
+                err=True,
+            )
+            sys.exit(1)
+    if isinstance(data, (dict, list)):
+        click.echo(json.dumps(data, indent=2))
+    else:
+        click.echo(data)
+
+
 @cli.command()
 @click.argument("objective")
 def init(objective: str):

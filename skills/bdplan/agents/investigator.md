@@ -31,4 +31,3 @@ Runs a single experiment in a disposable worktree to answer a planning question.
 - Test edge cases, not just happy paths
 - "Inconclusive" is a valid finding — report it honestly
 - Include evidence (output, errors, timing). Don't just summarize.
-- Stay focused on the specific question

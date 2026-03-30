@@ -137,8 +137,8 @@ If match found, ask: continue existing or start fresh?
 
 ```bash
 PLAN_JSON=$(uv run ${SKILL_DIR}/scripts/plan_manager.py init "${objective}")
-plan_id=$(echo "$PLAN_JSON" | uv run python -c "import sys,json; print(json.load(sys.stdin)['plan_id'])")
-plan_dir=$(echo "$PLAN_JSON" | uv run python -c "import sys,json; print(json.load(sys.stdin)['plan_dir'])")
+plan_id=$(echo "$PLAN_JSON" | uv run ${SKILL_DIR}/scripts/plan_manager.py json-get plan_id)
+plan_dir=$(echo "$PLAN_JSON" | uv run ${SKILL_DIR}/scripts/plan_manager.py json-get plan_dir)
 ```
 
 Creates `${plan_dir}/`, `findings/`, `assets/`, and initial `plan.md` with `status: scoping`.
@@ -328,8 +328,8 @@ cp -f "${SKILL_DIR}/formulas/plan-execute.formula.toml" .beads/formulas/
 RESULT=$(bd mol pour plan-execute --var objective="${objective}" --var plan_dir="${plan_dir}" --json)
 rm -f .beads/formulas/plan-execute.formula.toml
 
-EPIC=$(echo "$RESULT" | uv run python -c "import sys,json; print(json.load(sys.stdin)['new_epic_id'])")
-START_GATE=$(echo "$RESULT" | uv run python -c "import sys,json; print(json.load(sys.stdin)['id_mapping']['plan.start-gate'])")
+EPIC=$(echo "$RESULT" | uv run ${SKILL_DIR}/scripts/plan_manager.py json-get new_epic_id)
+START_GATE=$(echo "$RESULT" | uv run ${SKILL_DIR}/scripts/plan_manager.py json-get id_mapping "plan.start-gate")
 ```
 
 ### 4.3 — Create beads from plan.md
@@ -340,12 +340,12 @@ For each epic/issue:
 EPIC_BEAD=$(bd create "Epic: ${epic_name}" \
   --description="${epic_description}" -t epic -p 2 \
   --parent ${EPIC} --deps "${START_GATE}" \
-  --json | uv run python -c "import sys,json; print(json.load(sys.stdin)['id'])")
+  --json | uv run ${SKILL_DIR}/scripts/plan_manager.py json-get id)
 
 ISSUE_BEAD=$(bd create "${issue_description}" \
   --description="${issue_detail}" -t task -p 2 \
   --parent ${EPIC_BEAD} --deps "${dependency_beads}" \
-  --json | uv run python -c "import sys,json; print(json.load(sys.stdin)['id'])")
+  --json | uv run ${SKILL_DIR}/scripts/plan_manager.py json-get id)
 ```
 
 ### 4.4 — Attach upstream metadata
@@ -360,7 +360,7 @@ bd update ${ISSUE_BEAD} --metadata '{"upstream":"#142","disposition":"include"}'
 CAP_GATE=$(bd create "Gate: ${gate_name}" \
   --description="Condition: ${condition}\nTest: ${test_cmd}\nInstructions: ${instructions}" \
   -t gate --parent ${EPIC} \
-  --json | uv run python -c "import sys,json; print(json.load(sys.stdin)['id'])")
+  --json | uv run ${SKILL_DIR}/scripts/plan_manager.py json-get id)
 
 bd update ${blocked_issue} --deps "${CAP_GATE}" -q
 ```
@@ -373,13 +373,13 @@ Only when upstream issues incorporated (any non-exclude disposition):
 RECONCILE_GATE=$(bd create "Gate: Reconcile upstream" \
   --description="Blocks reconciliation until execution complete." \
   -t gate --parent ${EPIC} \
-  --json | uv run python -c "import sys,json; print(json.load(sys.stdin)['id'])")
+  --json | uv run ${SKILL_DIR}/scripts/plan_manager.py json-get id)
 
 RECONCILE_STEP=$(bd create "Reconcile: update upstream issues" \
   --description="Update upstream issues per plan dispositions." \
   -t task -p 1 --parent ${EPIC} --deps "${RECONCILE_GATE}" \
   --metadata "{\"agent\":\"agents/reconciler.md\",\"context\":[\"plan.md\"]}" \
-  --json | uv run python -c "import sys,json; print(json.load(sys.stdin)['id'])")
+  --json | uv run ${SKILL_DIR}/scripts/plan_manager.py json-get id)
 ```
 
 ### 4.7 — Burn investigation wisp
@@ -445,29 +445,11 @@ Confirm all changes committed, tests pass.
 git pull --rebase && bd dolt push && git push
 ```
 
-### 6.3 — Update upstream issues
+### 6.3 — Reconcile upstream issues
 
-Read plan.md Upstream Issues table. For each non-exclude issue:
+Read `${SKILL_DIR}/agents/reconciler.md` and follow its procedure. The reconciler parses plan.md dispositions, verifies execution, updates upstream issues, and reports results.
 
-| Disposition | Action |
-|-------------|--------|
-| **include** | Verify bead closed. Close upstream with comment. |
-| **partial** | Comment what was addressed and what remains. Do NOT close. |
-| **supersede** | Close as not-planned with rationale. |
-
-```bash
-gh issue close 142 --comment "Resolved in plan-NNN. See commit abc123."
-gh issue comment 167 --body "Partially addressed: X. Remaining: Y."
-gh issue close 158 --reason "not planned" --comment "Superseded by plan-NNN."
-```
-
-### 6.4 — Verify
-
-```bash
-gh issue view 142 --json state,comments | uv run python -c "import sys,json; d=json.load(sys.stdin); print(json.dumps({'state':d['state'],'last_comment':d['comments'][-1]['body']}, indent=2))"
-```
-
-### 6.5 — Close
+### 6.4 — Close
 
 ```bash
 bd close ${RECONCILE_STEP} --reason "Upstream issues reconciled" --json

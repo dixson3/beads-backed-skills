@@ -42,16 +42,11 @@ Decomposes objectives into investigated, scoped plans with beads-tracked executi
 **Setup** per project:
 
 1. `bd init`
-2. Create `AGENTS/PLANS.md` (skill bootstraps this on first run)
-3. Add to `CLAUDE.md`:
+2. `/bdplan init` — checks prerequisites, creates `AGENTS/PLANS.md`, and adds to `CLAUDE.md`:
 
 ```markdown
 ## Plans
-
-Load Plans workflow from: @AGENTS/PLANS.md
-
-- All planning work uses the `/bdplan` skill — do not use native plan mode
-- Planning-intent language ("let's design", "let's plan", "how should we build") triggers bdplan implicitly
+@AGENTS/PLANS.md
 ```
 
 **Usage:**

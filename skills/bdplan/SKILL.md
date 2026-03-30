@@ -329,7 +329,7 @@ RESULT=$(bd mol pour plan-execute --var objective="${objective}" --var plan_dir=
 rm -f .beads/formulas/plan-execute.formula.toml
 
 EPIC=$(echo "$RESULT" | uv run ${SKILL_DIR}/scripts/plan_manager.py json-get new_epic_id)
-START_GATE=$(echo "$RESULT" | uv run ${SKILL_DIR}/scripts/plan_manager.py json-get id_mapping "plan.start-gate")
+START_GATE=$(echo "$RESULT" | uv run ${SKILL_DIR}/scripts/plan_manager.py json-get id_mapping "plan-execute.start-gate")
 ```
 
 ### 4.3 — Create beads from plan.md

@@ -166,7 +166,7 @@ def seed_upstream_triage(plan_dir: Path, objective: str, issues: list[dict]) -> 
         labels = ", ".join(issue.get("labels", []))
         body = (issue.get("body", "") or "")[:200]
         lines.extend([
-            f"## #{number} -- {title}",
+            f"## #{number} — {title}",
             f"Labels: {labels}" if labels else "",
             f"> {body}..." if body else "",
             "",
@@ -187,8 +187,7 @@ def cli():
 
 @cli.command()
 @click.argument("objective")
-@click.option("--complex-scope", is_flag=True, help="Generate scope questionnaire")
-def init(objective: str, complex_scope: bool):
+def init(objective: str):
     """Initialize a new plan directory with seed documents."""
     user = get_git_user()
     plan_id = make_plan_id(objective)
@@ -196,12 +195,16 @@ def init(objective: str, complex_scope: bool):
     plan_md = seed_plan_md(plan_dir, plan_id, objective, user)
 
     result = {"plan_id": plan_id, "plan_dir": str(plan_dir), "plan_md": str(plan_md)}
-
-    if complex_scope:
-        scope_path = seed_scope_answers(plan_dir, objective)
-        result["scope_answers"] = str(scope_path)
-
     click.echo(json.dumps(result, indent=2))
+
+
+@cli.command()
+@click.argument("plan_dir", type=click.Path(exists=True))
+@click.argument("objective")
+def scope(plan_dir: str, objective: str):
+    """Generate scope-answers.md questionnaire for a plan."""
+    path = seed_scope_answers(Path(plan_dir), objective)
+    click.echo(json.dumps({"scope_answers": str(path)}, indent=2))
 
 
 @cli.command()

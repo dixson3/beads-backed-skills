@@ -54,19 +54,12 @@ Guidelines for writing skills, agents, phases, and instruction files that minimi
 If a phase file says "read agents/executor.md and follow its loop", the phase should NOT also describe the loop. The agent file is the single source of truth for that procedure.
 
 ### Shared prerequisites
-Extract common checks into a script. Each SKILL file calls the script, then adds only its harness-specific checks inline.
+Extract common checks into a script. SKILL.md calls the script, then adds skill-specific checks inline.
 
 ### Shared phase content
-Phase model diagrams, status values, and transition rules go in one shared file (overview.md), not in every SKILL variant.
+Phase model diagrams, status values, and transition rules go in one shared file (overview.md), not duplicated in SKILL.md.
 
 ## Verification
-
-After creating or modifying skill content, run:
-
-```bash
-# Harness-neutral check — no tool names in shared files
-grep -rn 'AskUserQuestion\|TodoWrite\|EnterWorktree\|ExitWorktree\|EnterPlanMode\|ExitPlanMode' phases/ agents/
-```
 
 Review each file for:
 - Lines that can be removed without changing model behavior

@@ -1,14 +1,7 @@
-Beads-backed skills for AI coding harnesses
-=============================================
+Beads-backed skills for Claude Code
+====================================
 
-Skills that leverage [beads](https://github.com/steveyegge/beads) for Claude Code and opencode.
-
-## Supported Harnesses
-
-| Harness | Repo |
-|---------|------|
-| Claude Code | https://github.com/anthropics/claude-code |
-| opencode | https://github.com/anomalyco/opencode |
+Skills that leverage [beads](https://github.com/steveyegge/beads) for Claude Code.
 
 ## Prerequisites
 
@@ -27,15 +20,13 @@ Optional (detected at runtime):
 
 ```bash
 # User-scoped (recommended)
-./install.sh claude              # ~/.claude/skills/
-./install.sh opencode            # ~/.agents/skills/
+./install.sh                          # ~/.claude/skills/
 
 # Project-scoped
-./install.sh claude --scope project    # .claude/skills/
-./install.sh opencode --scope project  # .opencode/skills/
+./install.sh --scope project          # .claude/skills/
 
 # Custom destination
-./install.sh claude --target /path/to/skills
+./install.sh --target /path/to/skills
 ```
 
 ## Skills
@@ -52,7 +43,7 @@ Decomposes objectives into investigated, scoped plans with beads-tracked executi
 
 1. `bd init`
 2. Create `AGENTS/PLANS.md` (skill bootstraps this on first run)
-3. Add to project instructions file (`CLAUDE.md`, `AGENTS.md`, or `opencode.md`):
+3. Add to `CLAUDE.md`:
 
 ```markdown
 ## Plans
@@ -84,9 +75,3 @@ UPSTREAM --> SCOPE <--> INVESTIGATE --> PLAN --> INTAKE
 ```
 
 See [skills/bdplan/README.md](skills/bdplan/README.md) for full details.
-
-## Design
-
-Skills follow a harness-agnostic architecture. See [AGENTS/HARNESS_AGNOSTIC.md](AGENTS/HARNESS_AGNOSTIC.md).
-
-Each skill has thin harness-specific entry points (`SKILL.claude.md`, `SKILL.opencode.md`) and shared content (`phases/`, `agents/`). The install script generates the `SKILL.md` the harness discovers.

@@ -48,7 +48,7 @@ git pull --rebase && bd dolt push && git push
 
 ## Rules
 
-- All task tracking uses `bd`. Never use built-in todo/task tools, markdown checklists, or inline task lists.
+- All task tracking uses `bd`. Never use `TodoWrite`, markdown checklists, or inline task lists.
 - Drain all unblocked work before reporting blocked gates.
 - New work discovered during execution: `bd create ... --deps discovered-from:<parent-id>`
 - Update plan.md status as phases transition.

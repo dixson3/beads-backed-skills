@@ -1,19 +1,19 @@
 # beads-skills
 
-Beads-backed skills for AI coding harnesses (Claude Code, opencode).
+Beads-backed skills for Claude Code.
 
-## Skills Development
+## Memory
 
-All skills MUST follow: @AGENTS/HARNESS_AGNOSTIC.md
+Do NOT use Claude Code memory (`~/.claude/` memory directories). Write to and load from `AGENTS/MEMORY.md` instead.
 
-## Token Optimization
+@AGENTS/MEMORY.md
 
-All skill content MUST follow: @AGENTS/OPTIMIZED_SKILLS.md
+On session start: review AGENTS/MEMORY.md entries. If a memory's effect is already enforced by a rule in AGENTS/, remove the memory entry — the rule supersedes it.
 
-On every create or modify of a skill file, agent, phase, instruction file (`CLAUDE.md` or any `@<file>` it imports), or rules file: review the changed file against the spec and fix violations in the same pass.
+## Rules
 
-## Documentation
+All skill work MUST follow these rules. Each is enforced on every create or modify of skill files.
 
-All documentation MUST follow: @AGENTS/DOCUMENTATION.md
-
-On every create or modify of implementation files, skill READMEs, or the project README: verify consistency per the spec and fix violations in the same pass.
+- @AGENTS/CONSISTENCY.md
+- @AGENTS/OPTIMIZED_SKILLS.md
+- @AGENTS/DOCUMENTATION.md

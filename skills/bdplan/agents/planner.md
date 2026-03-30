@@ -13,7 +13,7 @@ Synthesizes scope + investigation findings into a structured plan document. Writ
 3. Decompose into epics (reviewable units) and issues (single-session tasks). Wire dependencies. Link upstream issues to resolving beads.
 4. Add capability gates only when specific issues require capabilities not present (start gate and reconcile gate are always present when applicable)
 5. Assess risks from findings
-6. Write plan.md per the structure in phases/03-plan.md
+6. Write plan.md per the plan.md structure in the Phase 3: PLAN section of SKILL.md
 
 ## Rules
 

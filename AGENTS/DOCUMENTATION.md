@@ -4,7 +4,7 @@ Rules for keeping documentation accurate across the project.
 
 ## Source of Truth Hierarchy
 
-1. **Implementation** — SKILL.*.md, phases/, agents/, scripts/, formulas/ are authoritative
+1. **Implementation** — SKILL.md, phases/, agents/, scripts/, formulas/ are authoritative
 2. **Skill README** — `skills/<skill>/README.md` summarizes the implementation
 3. **Project README** — `README.md` indexes skills and provides install instructions
 
@@ -16,11 +16,11 @@ Every skill directory must contain a `README.md` with these sections, derived fr
 
 | Section | Source |
 |---------|--------|
-| One-line description | SKILL.*.md description |
-| Prerequisites | `scripts/check-prereqs.sh` + harness-specific checks in SKILL.*.md |
-| Install | Per-skill `install.sh` usage + repo-level `install.sh` reference |
-| Usage | Invocation commands from SKILL.*.md |
-| Phase model | `phases/overview.md` diagram |
+| One-line description | SKILL.md description |
+| Prerequisites | `scripts/check-prereqs.sh` + checks in SKILL.md |
+| Install | Repo-level `install.sh` reference |
+| Usage | Invocation commands from SKILL.md |
+| Phase model | SKILL.md Phase Model section |
 | File layout | Actual directory listing with one-line descriptions per file |
 
 ## Project README Requirements
@@ -37,21 +37,21 @@ The project README must contain:
 ## Consistency Checks
 
 On every create or modify of:
-- A skill's implementation files (SKILL.*.md, phases/, agents/, scripts/, formulas/)
+- A skill's implementation files (SKILL.md, phases/, agents/, scripts/, formulas/)
 - A skill's README.md
 - The project README.md
 
 Verify:
 
 1. **Skill README matches implementation:**
-   - Description matches SKILL.*.md
+   - Description matches SKILL.md
    - Prerequisites match `check-prereqs.sh` checks (tool names, versions, install URLs)
-   - Usage commands match SKILL.*.md invocation list
+   - Usage commands match SKILL.md invocation list
    - File layout matches actual `find skills/<skill> -type f` output
-   - Phase diagram matches `phases/overview.md`
+   - Phase diagram matches SKILL.md Phase Model section
 
 2. **Project README matches skill READMEs:**
-   - Skills index table lists every directory under `skills/` that has a SKILL.claude.md
+   - Skills index table lists every directory under `skills/` that has a SKILL.md
    - Each skill's description matches its README
    - Prerequisites table is the union of all skill prerequisites
    - Install instructions match `install.sh` actual flags and destination paths
@@ -59,7 +59,7 @@ Verify:
 3. **No stale references:**
    - No file paths in documentation that don't exist on disk
    - No tool/version requirements that differ from what check-prereqs.sh actually checks
-   - No commands that differ from what SKILL.*.md actually defines
+   - No commands that differ from what SKILL.md actually defines
 
 ## When Adding a New Skill
 

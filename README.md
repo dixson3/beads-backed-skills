@@ -57,6 +57,7 @@ Load Plans workflow from: @AGENTS/PLANS.md
 **Usage:**
 
 ```
+/bdplan init                     Initialize bdplan for this project
 /bdplan <objective>              New plan
 /bdplan continue [<plan-id>]     Resume open plan
 /bdplan execute [<plan-id>]      Begin execution (new session required)

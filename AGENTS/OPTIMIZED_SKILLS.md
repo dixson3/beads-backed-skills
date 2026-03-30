@@ -50,8 +50,8 @@ Guidelines for writing skills, agents, phases, and instruction files that minimi
 
 ## Deduplication patterns
 
-### Agent + Phase overlap
-If a phase file says "read agents/executor.md and follow its loop", the phase should NOT also describe the loop. The agent file is the single source of truth for that procedure.
+### Dispatch over inline for agent behavior
+SKILL.md loads on every invocation; agent files load only when their phase activates. When an agent's behavior exceeds ~15 lines (constraints, output format, evaluation criteria), define it in `agents/<name>.md` and dispatch from SKILL.md with a one-line reference. SKILL.md owns orchestration (when and what to dispatch); agent files own execution (how to perform the work). Don't dispatch trivial behavior — if the dispatch reference is as long as the content, inline it. Corollary: if SKILL.md dispatches to an agent file, it must not also describe the agent's procedure — the agent file is the single source of truth.
 
 ### Shared prerequisites
 Extract common checks into a script. SKILL.md calls the script, then adds skill-specific checks inline.

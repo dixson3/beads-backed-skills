@@ -22,13 +22,13 @@ Verification: SKILL.md Pre-flight section.
 
 REQ-CLI-005: If `config.local.json` contains `"ignore-skill": true`, the skill exits silently and falls back to native plan mode.
 Rationale: Projects that can't satisfy prerequisites need a clean opt-out without repeated error messages.
-Verification: SKILL.md Pre-flight bullet 2; check-system.sh line 9.
+Verification: SKILL.md Pre-flight bullet 2; `_check_prerequisites()` in plan_manager.py returns `{"status":"ignored"}`.
 
 ## plan_manager.py CLI
 
-REQ-CLI-006: `plan_manager.py` exposes 5 subcommands: `init`, `scope`, `triage`, `list`, `update-status`.
+REQ-CLI-006: `plan_manager.py` exposes 6 subcommands: `check`, `init`, `scope`, `triage`, `list`, `update-status`.
 Rationale: These are the mechanical operations SKILL.md delegates; missing any breaks the wiring.
-Verification: `grep '@cli.command' skills/bdplan/scripts/plan_manager.py` returns 5 matches.
+Verification: `grep '@cli.command' skills/bdplan/scripts/plan_manager.py` returns 6 matches.
 
 REQ-CLI-007: All `plan_manager.py` subcommands that produce output emit JSON to stdout.
 Rationale: SKILL.md parses output with `uv run python -c "import json..."` — non-JSON breaks the pipeline.

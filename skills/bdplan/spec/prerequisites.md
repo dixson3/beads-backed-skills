@@ -4,19 +4,19 @@
 
 REQ-PREREQ-001: `git` must be available on PATH.
 Rationale: Plan IDs derive from git username; upstream discovery reads git remote; execution commits and pushes.
-Verification: `git --version` succeeds. check-system.sh and check-prereqs.sh both validate.
+Verification: `shutil.which("git")` in `plan_manager.py check`.
 
 REQ-PREREQ-002: `uv` must be available on PATH.
 Rationale: plan_manager.py runs via `uv run` with inline script metadata (PEP 723); no other Python runner is supported.
-Verification: `uv --version` succeeds. check-system.sh and check-prereqs.sh both validate.
+Verification: `shutil.which("uv")` in `plan_manager.py check`.
 
 REQ-PREREQ-003: `bd` (beads) must be available on PATH at version >= 0.60.
 Rationale: The execution engine depends on beads features introduced in 0.60 (molecules, gates, metadata).
-Verification: `bd --version` output parsed and compared. check-system.sh and check-prereqs.sh both validate.
+Verification: `_parse_bd_version()` in `plan_manager.py check`.
 
 REQ-PREREQ-004: A beads database must be initialized in the project (`bd init`).
 Rationale: All `bd` commands fail without an initialized database.
-Verification: `bd status --json` succeeds. check-system.sh and check-prereqs.sh both validate.
+Verification: `bd status --json` succeeds in `plan_manager.py check`.
 
 ## Optional Tools
 
@@ -34,9 +34,9 @@ REQ-PREREQ-020: `/bdplan init` is the sole entry point for prerequisite checking
 Rationale: Centralizes all setup in one command; no manual steps required beyond `bd init`.
 Verification: SKILL.md Pre-flight stops if config.local.json is missing and directs to `init`.
 
-REQ-PREREQ-021: `check-system.sh` writes `{"prereqs-present": true}` to `config.local.json` on success, caching the result for subsequent invocations.
+REQ-PREREQ-021: `plan_manager.py check` writes `{"prereqs-present": true}` to `config.local.json` on success, caching the result for subsequent invocations.
 Rationale: Re-running prereq checks on every invocation wastes time; caching makes pre-flight a single file read.
-Verification: check-system.sh lines 54-58.
+Verification: `_check_prerequisites()` in plan_manager.py calls `_write_config()` on success.
 
 REQ-PREREQ-022: If prerequisites are missing, the operator is offered two choices: fix prerequisites or ignore bdplan in this project.
 Rationale: Some projects can't satisfy prerequisites (no beads, no uv); ignoring cleanly falls back to native plan mode.

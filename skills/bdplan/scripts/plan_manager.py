@@ -13,6 +13,7 @@ and plan.md generation/updates.
 import hashlib
 import json
 import os
+import shutil
 import subprocess
 import sys
 from datetime import datetime
@@ -21,6 +22,11 @@ from pathlib import Path
 import click
 
 PLANS_DIR = Path("docs/plans")
+CONFIG_DIR = Path(".claude/.skill-bdplan")
+CONFIG_FILE = CONFIG_DIR / "config.local.json"
+GITIGNORE_FILE = CONFIG_DIR / ".gitignore"
+
+MIN_BD_VERSION = (0, 60)
 
 
 def get_git_user() -> str:
@@ -179,10 +185,140 @@ def seed_upstream_triage(plan_dir: Path, objective: str, issues: list[dict]) -> 
     return path
 
 
+def _read_config() -> dict:
+    """Read config.local.json, returning empty dict if missing/invalid."""
+    if not CONFIG_FILE.exists():
+        return {}
+    try:
+        return json.loads(CONFIG_FILE.read_text())
+    except (json.JSONDecodeError, OSError):
+        return {}
+
+
+def _write_config(data: dict) -> None:
+    """Write config.local.json and ensure .gitignore covers it."""
+    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    CONFIG_FILE.write_text(json.dumps(data, indent=2) + "\n")
+    if not GITIGNORE_FILE.exists():
+        GITIGNORE_FILE.write_text("config.local.json\n")
+
+
+def _parse_bd_version() -> tuple[int, ...] | None:
+    """Parse bd version into a tuple, or None if unavailable."""
+    try:
+        output = subprocess.check_output(
+            ["bd", "--version"], text=True, stderr=subprocess.DEVNULL
+        )
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        return None
+    import re
+    match = re.search(r"(\d+)\.(\d+)", output)
+    if not match:
+        return None
+    return (int(match.group(1)), int(match.group(2)))
+
+
+def _check_prerequisites() -> dict:
+    """Check all system prerequisites. Returns structured result."""
+    config = _read_config()
+
+    if config.get("ignore-skill"):
+        return {"status": "ignored"}
+
+    if config.get("prereqs-present"):
+        return {"status": "ok", "missing": [], "instructions": []}
+
+    missing = []
+    instructions = []
+
+    if not shutil.which("git"):
+        missing.append("git")
+        instructions.append("Install git via your system package manager")
+
+    if not shutil.which("uv"):
+        missing.append("uv")
+        instructions.append("Install uv: https://docs.astral.sh/uv/")
+
+    bd_version = _parse_bd_version()
+    if bd_version is None:
+        missing.append("bd")
+        instructions.append(
+            "Install beads: https://github.com/steveyegge/beads"
+        )
+    elif bd_version < MIN_BD_VERSION:
+        v_str = f"{bd_version[0]}.{bd_version[1]}"
+        missing.append(f"bd>={MIN_BD_VERSION[0]}.{MIN_BD_VERSION[1]}")
+        instructions.append(
+            f"Upgrade beads: bd upgrade (current: {v_str}, "
+            f"required: >= {MIN_BD_VERSION[0]}.{MIN_BD_VERSION[1]})"
+        )
+
+    if missing:
+        return {
+            "status": "system_deps_missing",
+            "missing": missing,
+            "instructions": instructions,
+        }
+
+    # Check bd init
+    try:
+        subprocess.check_output(
+            ["bd", "status", "--json"], stderr=subprocess.DEVNULL
+        )
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        return {
+            "status": "bd_not_initialized",
+            "missing": [],
+            "instructions": ["Run: bd init"],
+        }
+
+    # All passed — cache result
+    _write_config({"prereqs-present": True})
+    return {"status": "ok", "missing": [], "instructions": []}
+
+
 @click.group()
 def cli():
     """Plan manager for the /bdplan skill."""
     pass
+
+
+@cli.command()
+@click.option("--json-output", "as_json", is_flag=True,
+              help="Emit JSON (for skill bootstrap). Default is human-readable.")
+def check(as_json: bool):
+    """Check system prerequisites for bdplan."""
+    result = _check_prerequisites()
+
+    if as_json:
+        click.echo(json.dumps(result, indent=2))
+        sys.exit(0)
+
+    # Human-readable output
+    if result["status"] == "ignored":
+        click.echo("bdplan is ignored in this project.")
+        sys.exit(0)
+
+    if result["status"] in ("system_deps_missing", "bd_not_initialized"):
+        for msg in result["instructions"]:
+            click.echo(f"ERROR: {msg}", err=True)
+        sys.exit(1)
+
+    # status == "ok" — run additional project-level checks
+    errors = False
+    if not Path("AGENTS/PLANS.md").exists():
+        click.echo(
+            "ERROR: AGENTS/PLANS.md not found. "
+            "The planning protocol file is required.",
+            err=True,
+        )
+        errors = True
+
+    PLANS_DIR.mkdir(parents=True, exist_ok=True)
+
+    if errors:
+        sys.exit(1)
+    click.echo("All prerequisites satisfied.")
 
 
 @cli.command()

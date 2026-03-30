@@ -32,15 +32,15 @@ Verification: SKILL.md Phase 3 plan.md template; reconciler.md Execute step 1.
 
 REQ-DATA-020: Project-level config is stored at `.claude/.skill-bdplan/config.local.json`.
 Rationale: Scoped under `.claude/` to avoid polluting project root; `config.local.json` is gitignored to keep per-machine state out of the repo.
-Verification: check-system.sh line 5; SKILL.md Pre-flight section.
+Verification: plan_manager.py `CONFIG_FILE` constant; SKILL.md Pre-flight section.
 
 REQ-DATA-021: `config.local.json` supports two keys: `prereqs-present` (boolean) and `ignore-skill` (boolean).
 Rationale: Minimal config surface — prereqs caching avoids re-running checks every invocation; ignore provides clean opt-out.
-Verification: check-system.sh lines 9-16; SKILL.md Pre-flight.
+Verification: plan_manager.py `_check_prerequisites()` and `_read_config()`; SKILL.md Pre-flight.
 
 REQ-DATA-022: `config.local.json` is in `.claude/.skill-bdplan/.gitignore`.
 Rationale: Machine-specific prereq state must not be committed.
-Verification: check-system.sh lines 57-58; SKILL.md init flow line 62.
+Verification: plan_manager.py `_write_config()`; SKILL.md init flow line 62.
 
 ## Upstream Tracking
 

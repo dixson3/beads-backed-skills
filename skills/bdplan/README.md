@@ -32,7 +32,7 @@ Claude Code has a native plan mode, but it treats planning as a single-session, 
 
 ## Prerequisites
 
-Checked at runtime by `scripts/check-prereqs.sh`:
+Checked at runtime by `scripts/plan_manager.py check`:
 
 | Tool | Version | Install |
 |------|---------|---------|
@@ -102,9 +102,7 @@ formulas/
   plan-execute.formula.toml  Beads molecule for execution pipeline
   plan-investigate.formula.toml  Beads molecule for investigation wisp
 scripts/
-  check-system.sh            System dep check with JSON output (for bootstrap)
-  check-prereqs.sh           Hard-fail prerequisite checks (standalone use)
-  plan_manager.py            Plan CRUD helper (run via uv)
-templates/
-  PLANS.md                   Default planning protocol (copied to AGENTS/PLANS.md during bootstrap)
+  plan_manager.py            Plan CRUD and prerequisite checking (run via uv)
+protocols/
+  PLANS.md                   Planning protocol (copied to AGENTS/PLANS.md during bootstrap)
 ```

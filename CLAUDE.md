@@ -2,6 +2,10 @@
 
 Beads-backed skills for Claude Code.
 
+## Use Beads 
+
+@AGENTS/BEADS.md 
+
 ## Memory
 
 Do NOT use Claude Code memory (`~/.claude/` memory directories). Write to and load from `AGENTS/MEMORY.md` instead.

@@ -42,12 +42,12 @@ Initialize bdplan for the current project. Spawn a sub-agent (`Agent` with `suba
 ```
 Run bdplan init for Claude Code:
 
-1. Run ${SKILL_DIR}/scripts/check-system.sh and parse the JSON output.
+1. Run `uv run ${SKILL_DIR}/scripts/plan_manager.py check --json-output` and parse the JSON output.
    If status is "ok" (prereqs already cached), skip to step 3.
 2. If status is "system_deps_missing" or "bd_not_initialized", return the JSON as-is. Do nothing else.
 3. mkdir -p docs/plans
 4. mkdir -p AGENTS
-5. If AGENTS/PLANS.md does not exist, copy ${SKILL_DIR}/templates/PLANS.md to ./AGENTS/PLANS.md. Record this action.
+5. If AGENTS/PLANS.md does not exist, copy ${SKILL_DIR}/protocols/PLANS.md to ./AGENTS/PLANS.md. Record this action.
 6. If CLAUDE.md does not exist, create it with:
    ## Plans
    @AGENTS/PLANS.md
@@ -192,22 +192,17 @@ Before spawning sub-agents, write to plan.md:
 
 ### Dispatch experiments
 
-Spawn a sub-agent per unknown using `Agent` with `isolation="worktree"`, `mode="bypassPermissions"`. Prompt structure:
+Spawn a sub-agent per unknown using `Agent` with `isolation="worktree"`, `mode="bypassPermissions"`. Read `${SKILL_DIR}/agents/investigator.md` for the agent's role, output format, and behavioral rules. Prompt structure:
 
 ```
+Read ${SKILL_DIR}/agents/investigator.md and follow its instructions.
+
 EXPERIMENT: {question}
 CONSTRAINTS: {constraints}
-
-Disposable workspace — will be discarded.
-Return structured findings:
-
-## Finding: {question}
-### Approach Tested
-### Result
-### Implications for Plan
+PLAN CONTEXT: {scoping decisions and approach hypothesis}
 ```
 
-Sub-agent needs full bash/read/write access. Independent experiments run in parallel.
+Independent experiments run in parallel.
 
 Track via wisp:
 
@@ -235,6 +230,10 @@ After each sub-agent returns:
 ```bash
 uv run ${SKILL_DIR}/scripts/plan_manager.py update-status "${plan_dir}" "drafting" -m "synthesizing plan"
 ```
+
+### Synthesize plan
+
+Read `${SKILL_DIR}/agents/planner.md` and follow its synthesis procedure. The planner reads scope answers, findings, upstream triage, and current plan.md, then writes the complete plan document per the structure below.
 
 ### plan.md structure
 
@@ -295,10 +294,17 @@ uv run ${SKILL_DIR}/scripts/plan_manager.py update-status "${plan_dir}" "draftin
 uv run ${SKILL_DIR}/scripts/plan_manager.py update-status "${plan_dir}" "review" -m "plan v1 presented"
 ```
 
-Present for operator review.
+### Review
+
+Read `${SKILL_DIR}/agents/reviewer.md` and perform a structured red-team review of the plan. Present the review verdict and concerns to the operator.
+
+- **APPROVE**: advance to INTAKE
+- **REVISE**: address concerns, stay in PLAN
+- **INVESTIGATE-MORE**: return to INVESTIGATE for additional experiments
 
 ### Iteration
 
+- Operator overrides reviewer verdict at their discretion
 - "what about X?" -> may return to INVESTIGATE or SCOPE
 - "change approach to Y" -> revise, stay in PLAN
 - "approve" / "looks good" -> advance to INTAKE

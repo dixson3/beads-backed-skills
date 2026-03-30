@@ -418,21 +418,21 @@ def update_status(plan_dir: str, status: str, message: str):
     new_lines = []
     log_entry = f"- {today} {status}: {message or status}"
 
+    skip_until = -1
     for i, line in enumerate(lines):
+        if i < skip_until:
+            continue
         if line.startswith("**Status:**"):
             new_lines.append(f"**Status:** {status}")
         elif line.startswith("**Phase log:**"):
             new_lines.append(line)
-            # Find the last log entry and insert after it
             j = i + 1
             while j < len(lines) and lines[j].startswith("- "):
                 new_lines.append(lines[j])
                 j += 1
             new_lines.append(log_entry)
-            # Skip the lines we already consumed
-            for k in range(i + 1, j):
-                lines[k] = None  # type: ignore
-        elif line is not None:
+            skip_until = j
+        else:
             new_lines.append(line)
 
     plan_md.write_text("\n".join(new_lines) + "\n")

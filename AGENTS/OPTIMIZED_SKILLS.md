@@ -75,3 +75,14 @@ Review each file for:
 - Sections restating information available in referenced files
 - Comments explaining obvious code
 - Narrative sentences that don't encode an action or constraint
+
+### SKILL.md frontmatter audit
+
+Every `SKILL.md` must use YAML frontmatter (not block-quote style). Check:
+
+- File starts with `---` on line 1
+- Frontmatter includes a `description` field with trigger conditions (`TRIGGER when:` language)
+- `allowed-tools` is a YAML list, not a prose line
+- No `> Key: value` block-quote headers remain
+
+If block-quote headers are found, convert the entire frontmatter block to YAML and add a `description` field derived from any inline `**TRIGGER:**` line. Remove the inline `**TRIGGER:**` line after migrating it — it is redundant once `description` is set.

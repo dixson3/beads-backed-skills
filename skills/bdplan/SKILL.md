@@ -1,11 +1,27 @@
-> User-invocable: true
-> Allowed tools: Read, Write, Edit, Bash, Glob, Grep, WebSearch, WebFetch, Agent, AskUserQuestion, EnterWorktree, ExitWorktree
+---
+name: bdplan
+description: >
+  Structured planning with beads-tracked execution and upstream issue reconciliation.
+  TRIGGER when: /bdplan invoked, user uses planning-intent language ("let's plan",
+  "let's design", "how should we build", "let's architect"), or native plan mode triggers.
+  OVERRIDE: replaces EnterPlanMode/ExitPlanMode — never use native plan mode.
+user-invocable: true
+allowed-tools:
+  - Read
+  - Write
+  - Edit
+  - Bash
+  - Glob
+  - Grep
+  - WebSearch
+  - WebFetch
+  - Agent
+  - AskUserQuestion
+  - EnterWorktree
+  - ExitWorktree
+---
 
 # bdplan
-
-Structured planning with beads-tracked execution and upstream issue reconciliation.
-
-**TRIGGER:** /bdplan, or planning-intent language ("let's design", "let's plan", "how should we build", "let's architect")
 
 **OVERRIDE:** Replaces native plan mode. Do not use EnterPlanMode/ExitPlanMode.
 

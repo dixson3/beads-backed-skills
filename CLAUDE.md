@@ -21,3 +21,10 @@ All skill work MUST follow these rules. Each is enforced on every create or modi
 - @AGENTS/CONSISTENCY.md
 - @AGENTS/OPTIMIZED_SKILLS.md
 - @AGENTS/DOCUMENTATION.md
+
+## Upstream Tracking
+
+- **Source:** github
+- **Repo:** dixson3/beads-backed-skills
+- **Tool:** `gh issue`
+- **Notes:** Issues filed against the published skill repo. This working directory (`beads-skills`) is the same codebase.

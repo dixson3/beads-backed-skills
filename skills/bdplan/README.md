@@ -94,7 +94,7 @@ At intake, every plan folder is subject to a mechanical portability audit (`plan
 - `reviews/pass-<N>.md` for every review cycle (1:1 with phase-log review lines)
 - No dangling external refs (absolute paths or `../` outside fenced/inline code)
 
-A cold reader in a different repo, with no access to the drafting conversation, must be able to understand the plan from the folder alone. See `spec/portability.md` for full requirements and the activation date. `/bdplan capture` audits and drafts missing files mid-drafting; intake can be bypassed with `--force-intake` (logged to the phase log).
+A cold reader in a different repo, with no access to the drafting conversation, must be able to understand the plan from the folder alone. The audit runs as the **last step of Phase 3 (PLAN)** — after reviewer approval, before transition to intake. It is idempotent: safe to run repeatedly as the operator iterates on gaps via `/bdplan capture`. Override with explicit `--force` on approval (logged to the phase log). See `spec/portability.md` for full requirements and the activation date.
 
 ## File Layout
 

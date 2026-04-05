@@ -322,7 +322,7 @@ uv run ${SKILL_DIR}/scripts/plan_manager.py update-status "${plan_dir}" "review"
 
 Read `${SKILL_DIR}/agents/reviewer.md` and perform a structured red-team review of the plan. Present the review verdict and concerns to the operator.
 
-- **APPROVE**: advance to INTAKE
+- **APPROVE**: run portability audit, then advance to INTAKE
 - **REVISE**: address concerns, stay in PLAN
 - **INVESTIGATE-MORE**: return to INVESTIGATE for additional experiments
 
@@ -332,12 +332,35 @@ Read `${SKILL_DIR}/agents/reviewer.md` and perform a structured red-team review 
 
 The `reviews/pass-N.md` write and the phase-log entry are a **single atomic step** — both land before the status advances.
 
+### Portability audit (last step of PLAN)
+
+After the reviewer verdict is APPROVE (and the operator confirms), run the portability audit **before** transitioning to INTAKE. The audit is idempotent — safe to run multiple times during plan development. It is a **script exit-code check, not a bd gate**. Any `fail` finding blocks the transition to INTAKE; the operator fixes the gaps (or runs `/bdplan capture`) and re-runs the audit.
+
+```bash
+AUDIT_JSON=$(uv run ${SKILL_DIR}/scripts/plan_manager.py audit "${plan_dir}" --json-output)
+AUDIT_STATUS=$(echo "$AUDIT_JSON" | uv run ${SKILL_DIR}/scripts/plan_manager.py json-get status)
+if [ "$AUDIT_STATUS" != "pass" ]; then
+  echo "$AUDIT_JSON" | uv run ${SKILL_DIR}/scripts/plan_manager.py json-get report
+  echo "Plan cannot advance to INTAKE. Remediate the failures above (or run /bdplan capture), then re-approve."
+fi
+```
+
+On audit pass, transition to INTAKE. On audit fail, stay in PLAN — the operator remediates, re-approves, and the audit re-runs. This loop is idempotent: the audit reads plan state, produces a verdict, and has no side effects.
+
+**Override.** The operator may bypass the audit with explicit `--force` (e.g., "approve --force"). The override appends a phase-log entry recording the bypass and the operator's stated reason:
+
+```
+- YYYY-MM-DD approved: portability audit overridden — reasoning: <operator reason>
+```
+
+**Grandfather clause.** Plans whose first `scoping:` phase-log entry is before the activation date (`PORTABILITY_ACTIVATION_DATE` in `plan_manager.py`, also recorded in `spec/portability.md`) have missing scaffolding downgraded to `warn` findings instead of `fail`. Audit passes; operator sees the gaps. New plans (first scoped on/after activation) get hard failures. See `spec/portability.md` for the activation date.
+
 ### Iteration
 
 - Operator overrides reviewer verdict at their discretion
 - "what about X?" -> may return to INVESTIGATE or SCOPE
 - "change approach to Y" -> revise, stay in PLAN
-- "approve" / "looks good" -> advance to INTAKE
+- "approve" / "looks good" -> run portability audit, then advance to INTAKE on pass
 
 ---
 
@@ -350,28 +373,6 @@ On operator approval:
 ```bash
 uv run ${SKILL_DIR}/scripts/plan_manager.py update-status "${plan_dir}" "approved" -m "operator approved"
 ```
-
-### 4.1a — Portability precondition check (hard block)
-
-Between `update-status approved` and molecule pour, run the portability audit. This is a **script exit-code check, not a bd gate**. Any `fail` finding halts intake.
-
-```bash
-AUDIT_JSON=$(uv run ${SKILL_DIR}/scripts/plan_manager.py audit "${plan_dir}" --json-output)
-AUDIT_STATUS=$(echo "$AUDIT_JSON" | uv run ${SKILL_DIR}/scripts/plan_manager.py json-get status)
-if [ "$AUDIT_STATUS" != "pass" ]; then
-  echo "$AUDIT_JSON" | uv run ${SKILL_DIR}/scripts/plan_manager.py json-get report
-  echo "Intake halted by portability audit. Remediate the failures above, or re-run with --force-intake."
-  exit 1
-fi
-```
-
-**Override.** `/bdplan execute --force-intake` (or `/bdplan intake --force`) bypasses the audit. The override is not silent: the main session appends a phase-log entry recording that intake was forced and the operator's stated reason:
-
-```
-- YYYY-MM-DD approved: intake forced past audit — reasoning: <operator reason>
-```
-
-**Grandfather clause.** Plans whose first `scoping:` phase-log entry is before the activation date (`PORTABILITY_ACTIVATION_DATE` in `plan_manager.py`, also recorded in `spec/portability.md`) have missing scaffolding downgraded to `warn` findings instead of `fail`. Audit still passes; operator sees the gaps. New plans (first scoped on/after activation) get hard failures. See `spec/portability.md` for the activation date.
 
 ### 4.2 — Pour molecule
 

@@ -50,15 +50,15 @@ REQ-PORT-011: The audit overall status is `pass` iff no finding has status `fail
 Rationale: Two-level severity lets the grandfather clause downgrade without removing the audit entirely.
 Verification: `_audit_plan` sets `status = "fail" if any_fail else "pass"`.
 
-REQ-PORT-012: The audit is inserted into SKILL.md Phase 4 between `update-status approved` (§4.1) and `bd mol pour` (§4.2). It is a script exit-code check, NOT a bd gate. The term "gate" is reserved for bd gates.
-Rationale: A bd gate would require its own beads and dependencies; the audit is a pre-molecule precondition and has no ongoing execution state.
-Verification: SKILL.md §4.1a contains the audit dispatch snippet; no `bd create -t gate` call in the audit path.
+REQ-PORT-012: The audit runs as the **last step of Phase 3 (PLAN)**, after reviewer approval and before transition to Phase 4 (INTAKE). It is idempotent — safe to run multiple times during plan development. It is a script exit-code check, NOT a bd gate. The term "gate" is reserved for bd gates.
+Rationale: The audit validates the planning output, not the intake machinery. Running it at end-of-PLAN lets the operator iterate on gaps (or use `/bdplan capture`) while still in the planning phase. Idempotency means re-running after fixes is free.
+Verification: SKILL.md Phase 3 "Portability audit" subsection contains the audit dispatch snippet; Phase 4 has no audit call; no `bd create -t gate` in the audit path.
 
 ## Override
 
-REQ-PORT-020: `/bdplan execute --force-intake` (alias `/bdplan intake --force`) bypasses the portability audit. The override must append a phase-log entry of the form `- YYYY-MM-DD approved: intake forced past audit — reasoning: <operator reason>`. Unlogged overrides are forbidden.
+REQ-PORT-020: The operator may bypass the portability audit with an explicit `--force` on approval (e.g., "approve --force"). The override must append a phase-log entry of the form `- YYYY-MM-DD approved: portability audit overridden — reasoning: <operator reason>`. Unlogged overrides are forbidden.
 Rationale: A hard audit with no escape hatch produces operator frustration in legitimate edge cases; an unlogged escape hatch hides quality regressions. Mandatory reasoning gives the audit teeth without blocking operator judgment.
-Verification: SKILL.md §4.1a documents the override and the phase-log line format.
+Verification: SKILL.md Phase 3 "Portability audit" subsection documents the override and the phase-log line format.
 
 ## /bdplan capture
 

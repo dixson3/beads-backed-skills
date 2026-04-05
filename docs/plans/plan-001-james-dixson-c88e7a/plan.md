@@ -3,7 +3,7 @@
 **ID:** plan-001-james-dixson-c88e7a
 **Author:** james-dixson
 **Created:** 2026-04-05
-**Status:** executing
+**Status:** reconciling
 **Phase log:**
 - 2026-04-05 scoping: initial scope captured
 - 2026-04-05 drafting: no blocking unknowns, synthesizing plan v1
@@ -12,10 +12,19 @@
 - 2026-04-05 review: plan v2 presented
 - 2026-04-05 approved: operator approved plan v2
 - 2026-04-05 executing: start gate resolved
+- 2026-04-05 reconciling: all execution beads closed
 
 ## Objective
 
 Extend the bdplan skill so every plan folder satisfies a **portability contract** by intake time: a cold reader on a different machine, in a different repo, with no access to the drafting conversation, can understand why the plan exists, what environment it assumes, what the reviewers flagged, and what upstream issues it resolves — from the plan folder alone.
+
+## Motivation
+
+bdplan plans currently accumulate significant context in the drafting conversation — tool versions, project paths, scope reframings, reviewer verdicts, upstream issue bodies, relationships to adjacent concepts — that never lands in the plan folder. When a plan is moved to another repo, or the drafting context is cleared before intake, or a new operator picks up the plan later, that context is lost.
+
+The concrete trigger was a mid-drafting audit on `dixson3/obsidian-primary` plan-002 ("Cross-project communication substrate"). Seven distinct classes of information were found only in conversation, not in the plan folder: motivating use case, project environment, adjacent-concept glossary, reviewer verdicts + resolutions, upstream issue bodies, scope-change history, and runtime assumptions. The gap was fixed ad-hoc for plan-002 by writing six new files into the folder and adding a "read first" pointer to plan.md.
+
+This plan turns that ad-hoc fix into a bdplan skill feature. Intake is the forcing function: it is the point where a plan transitions from "living in a drafting conversation" to "living in beads, ready to be executed by a potentially-different session/operator." After intake, the drafting conversation is no longer the source of truth. The portability contract is therefore enforced at intake — not earlier (premature) and not later (information already gone).
 
 ## Upstream Issues
 

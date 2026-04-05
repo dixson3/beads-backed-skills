@@ -55,6 +55,7 @@ Decomposes objectives into investigated, scoped plans with beads-tracked executi
 /bdplan init                     Initialize bdplan for this project
 /bdplan <objective>              New plan
 /bdplan continue [<plan-id>]     Resume open plan
+/bdplan capture [<plan-id>]      Audit portability and draft missing contract files (no status change)
 /bdplan execute [<plan-id>]      Begin execution (new session required)
 /bdplan status [<plan-id>]       Show progress
 /bdplan list                     List all plans

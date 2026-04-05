@@ -6,9 +6,9 @@ REQ-DATA-001: Plan IDs follow the format `plan-NNN-<user>-<hash>` where NNN is a
 Rationale: Predictable, sortable IDs enable listing and selection; the hash prevents collisions when multiple plans share an index.
 Verification: `make_plan_id` in plan_manager.py; SKILL.md Phase 3 plan.md template shows `plan-NNN-user-hash`.
 
-REQ-DATA-002: Plan directories are stored under `docs/plans/<plan-id>/` with subdirectories `findings/` and `assets/`.
-Rationale: Versioned in git, reviewable in PRs, co-located with the code they describe.
-Verification: `make_plan_dir` in plan_manager.py creates both subdirectories.
+REQ-DATA-002: Plan directories are stored under `docs/plans/<plan-id>/` with subdirectories `findings/`, `assets/`, `references/`, and `reviews/`, plus root files `plan.md`, `README.md`, and `context.md` (seeded at init time by the portability contract).
+Rationale: Versioned in git, reviewable in PRs, co-located with the code they describe. `references/` and `reviews/` carry portability scaffolding (spec/portability.md REQ-PORT-005/006).
+Verification: `make_plan_dir` creates findings/ and assets/; `seed_portability_scaffolding` creates references/ and reviews/ plus README.md and context.md; `init` command invokes both.
 
 ## plan.md Schema
 
@@ -16,9 +16,9 @@ REQ-DATA-010: Every plan.md contains these required fields: ID, Author, Created,
 Rationale: These fields enable cold resume (`/bdplan continue`) — a plan.md missing any of them cannot be reliably resumed.
 Verification: `seed_plan_md` in plan_manager.py writes all 5 fields; SKILL.md Phase 3 template includes all 5.
 
-REQ-DATA-011: Every plan.md contains these required sections: Objective, Upstream Issues, Investigation Findings, Approach, Epics, Gates, Risks & Mitigations, Success Criteria.
-Rationale: These sections are the planner agent's output contract and the executor's input contract.
-Verification: SKILL.md Phase 3 plan.md structure template.
+REQ-DATA-011: Every plan.md contains these required sections: Objective, Motivation, Upstream Issues, Investigation Findings, Approach, Epics, Gates, Risks & Mitigations, Success Criteria. Motivation may alternatively live in a sibling `motivation.md` file (see REQ-PORT-004).
+Rationale: These sections are the planner agent's output contract and the executor's input contract. Motivation is required by the portability contract so cold readers can answer "why does this plan exist?" without the drafting conversation.
+Verification: SKILL.md Phase 3 plan.md structure template includes §Motivation; `seed_plan_md` in plan_manager.py writes a §Motivation placeholder; `_audit_plan` enforces non-placeholder content.
 
 REQ-DATA-012: The Phase log is append-only. Each entry is formatted `- YYYY-MM-DD <status>: <message>`.
 Rationale: Append-only log preserves the full history of phase transitions for audit and debugging.

@@ -39,6 +39,7 @@ All skill-internal paths use `${SKILL_DIR}/` prefix.
 - `/bdplan init` — initialize bdplan for this project
 - `/bdplan <objective>` — new plan
 - `/bdplan continue [<plan-id>]` — resume open plan
+- `/bdplan capture [<plan-id>]` — audit plan folder portability and draft missing contract files (re-entrant, does not advance status)
 - `/bdplan execute [<plan-id>]` — begin execution (new session)
 - `/bdplan status [<plan-id>]` — show progress
 - `/bdplan list` — list all plans
@@ -157,7 +158,7 @@ plan_id=$(echo "$PLAN_JSON" | uv run ${SKILL_DIR}/scripts/plan_manager.py json-g
 plan_dir=$(echo "$PLAN_JSON" | uv run ${SKILL_DIR}/scripts/plan_manager.py json-get plan_dir)
 ```
 
-Creates `${plan_dir}/`, `findings/`, `assets/`, and initial `plan.md` with `status: scoping`.
+Creates `${plan_dir}/`, `findings/`, `assets/`, `references/`, `reviews/`, initial `plan.md` with `status: scoping`, `README.md` (orientation), and `context.md` (tool-inventory snapshot with hostname+date header). Tool detection is best-effort — missing tools are recorded as `not present` and never block init.
 
 ### 1.3 — Upstream issue scan
 
@@ -173,6 +174,8 @@ Present matches with disposition options: `[include] [exclude] [partial] [supers
 For <=5 issues, present inline. For >5, direct operator to edit the generated `upstream-triage.md`.
 
 Record decisions in plan.md **Upstream Issues** section.
+
+`triage` also writes `references/upstream-<N>.md` — one file per issue, containing the full (untruncated) body, URL, labels, and state. These files are **regenerated on every re-triage**; operator hand-edits will be clobbered. The 200-char truncation remains in `upstream-triage.md` for readability.
 
 ### 1.4 — Scoping
 
@@ -268,6 +271,11 @@ Read `${SKILL_DIR}/agents/planner.md` and follow its synthesis procedure. The pl
 ## Objective
 <what and why>
 
+## Motivation
+<why this plan exists — the problem, who is affected, what triggered the work.
+Required by the portability contract (spec/portability.md REQ-PORT-004).
+Either this section or a motivation.md file must be present and non-empty.>
+
 ## Upstream Issues
 | Issue | Title | Disposition | Notes | Resolved By |
 |-------|-------|-------------|-------|-------------|
@@ -318,6 +326,12 @@ Read `${SKILL_DIR}/agents/reviewer.md` and perform a structured red-team review 
 - **REVISE**: address concerns, stay in PLAN
 - **INVESTIGATE-MORE**: return to INVESTIGATE for additional experiments
 
+**Reviewer is read-only** (REQ-AGENT-043). The reviewer agent never writes files. After the operator resolves the reviewer's concerns, the main session writes `${plan_dir}/reviews/pass-N.md` capturing: verdict, concerns verbatim, operator resolution for each concern, final status.
+
+**Pass numbering is strict.** After writing the phase-log entry for this review, `N` is derived as the count of lines matching `^- \d{4}-\d{2}-\d{2} review:` in the phase log. The file is `pass-${N}.md`. **Files are never overwritten.** On REVISE loops the cycle is: reviewer runs → operator resolves → `pass-N.md` written → phase-log entry appended → status either stays in `drafting` (revise) or advances (approve). Each full review cycle produces exactly one file.
+
+The `reviews/pass-N.md` write and the phase-log entry are a **single atomic step** — both land before the status advances.
+
 ### Iteration
 
 - Operator overrides reviewer verdict at their discretion
@@ -336,6 +350,28 @@ On operator approval:
 ```bash
 uv run ${SKILL_DIR}/scripts/plan_manager.py update-status "${plan_dir}" "approved" -m "operator approved"
 ```
+
+### 4.1a — Portability precondition check (hard block)
+
+Between `update-status approved` and molecule pour, run the portability audit. This is a **script exit-code check, not a bd gate**. Any `fail` finding halts intake.
+
+```bash
+AUDIT_JSON=$(uv run ${SKILL_DIR}/scripts/plan_manager.py audit "${plan_dir}" --json-output)
+AUDIT_STATUS=$(echo "$AUDIT_JSON" | uv run ${SKILL_DIR}/scripts/plan_manager.py json-get status)
+if [ "$AUDIT_STATUS" != "pass" ]; then
+  echo "$AUDIT_JSON" | uv run ${SKILL_DIR}/scripts/plan_manager.py json-get report
+  echo "Intake halted by portability audit. Remediate the failures above, or re-run with --force-intake."
+  exit 1
+fi
+```
+
+**Override.** `/bdplan execute --force-intake` (or `/bdplan intake --force`) bypasses the audit. The override is not silent: the main session appends a phase-log entry recording that intake was forced and the operator's stated reason:
+
+```
+- YYYY-MM-DD approved: intake forced past audit — reasoning: <operator reason>
+```
+
+**Grandfather clause.** Plans whose first `scoping:` phase-log entry is before the activation date (`PORTABILITY_ACTIVATION_DATE` in `plan_manager.py`, also recorded in `spec/portability.md`) have missing scaffolding downgraded to `warn` findings instead of `fail`. Audit still passes; operator sees the gaps. New plans (first scoped on/after activation) get hard failures. See `spec/portability.md` for the activation date.
 
 ### 4.2 — Pour molecule
 
@@ -472,6 +508,31 @@ bd close ${RECONCILE_STEP} --reason "Upstream issues reconciled" --json
 bd close ${EPIC} --reason "Plan complete" --json
 uv run ${SKILL_DIR}/scripts/plan_manager.py update-status "${plan_dir}" "complete" -m "plan complete"
 ```
+
+---
+
+## Phase: CAPTURE (manual)
+
+**Invocation:** `/bdplan capture [<plan-id>]`
+
+Re-entrant and status-agnostic — runs in any phase before intake (`scoping`, `investigating`, `drafting`, `review`). Purely side-effecting on the plan folder; **does NOT advance plan status** and does NOT touch beads.
+
+### Flow
+
+1. **Audit.** Run the portability audit and present findings to the operator:
+   ```bash
+   uv run ${SKILL_DIR}/scripts/plan_manager.py audit "${plan_dir}" --json-output
+   ```
+2. **Draft missing files.** For each `fail` finding, dispatch the captor agent to draft the missing file from current plan state. Read `${SKILL_DIR}/agents/captor.md` and follow its procedure. The captor reads `plan.md`, `findings/`, `upstream-triage.md`, phase log, and (for upstream references) runs `gh issue view <N>`; it returns draft content. **Captor never writes files** — the main session does.
+3. **Operator review.** Present each draft in full to the operator before writing. Never overwrite an existing file without `--force`.
+4. **Write.** On operator approval, write each file. Re-run the audit to confirm progress.
+
+### Rules
+
+- `/bdplan capture` does not call `update-status`. Plan status is unchanged.
+- No bead mutations. No molecule pour.
+- Existing files are preserved unless the operator passes `--force`.
+- If no findings are `fail`, report "already portable" and exit.
 
 ---
 

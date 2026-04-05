@@ -63,6 +63,7 @@ Or per-skill: copy the `skills/bdplan` directory to `~/.claude/skills/bdplan`.
 /bdplan init                     Initialize bdplan for this project
 /bdplan <objective>              New plan
 /bdplan continue [<plan-id>]     Resume open plan
+/bdplan capture [<plan-id>]      Audit portability and draft missing contract files (no status change)
 /bdplan execute [<plan-id>]      Begin execution (new session required)
 /bdplan status [<plan-id>]       Show progress
 /bdplan list                     List all plans
@@ -82,6 +83,19 @@ UPSTREAM --> SCOPE <--> INVESTIGATE --> PLAN --> INTAKE
 
 Plans are scoped, investigated, and approved in one session. Execution starts in a new session via `/bdplan execute`. Reconcile updates linked upstream issues after push.
 
+### Portability contract
+
+At intake, every plan folder is subject to a mechanical portability audit (`plan_manager.py audit`). A plan folder must contain:
+
+- `README.md` — orientation (file map, reading order)
+- `context.md` — project environment snapshot (tool inventory with hostname+date header, paths, operator identity, runtime assumptions)
+- A `## Motivation` section in `plan.md` or a `motivation.md` file
+- `references/upstream-<N>.md` for every non-excluded upstream issue (full body)
+- `reviews/pass-<N>.md` for every review cycle (1:1 with phase-log review lines)
+- No dangling external refs (absolute paths or `../` outside fenced/inline code)
+
+A cold reader in a different repo, with no access to the drafting conversation, must be able to understand the plan from the folder alone. See `spec/portability.md` for full requirements and the activation date. `/bdplan capture` audits and drafts missing files mid-drafting; intake can be bypassed with `--force-intake` (logged to the phase log).
+
 ## File Layout
 
 ```
@@ -92,17 +106,34 @@ spec/
   agents.md                  Agent roles, inputs, outputs, and behavioral constraints
   data.md                    Plan identity, plan.md schema, config, formulas
   prerequisites.md           Required/optional tools, bootstrap flow, install URLs
+  portability.md             Portability contract, audit semantics, activation date
 agents/
   executor.md                Drives execution DAG to completion
   investigator.md            Runs single experiment in disposable worktree
   planner.md                 Synthesizes scope + findings into plan
   reconciler.md              Updates upstream issues per dispositions
   reviewer.md                Red-team plan review before approval
+  captor.md                  Drafts missing portability-contract files for /bdplan capture
 formulas/
   plan-execute.formula.toml  Beads molecule for execution pipeline
   plan-investigate.formula.toml  Beads molecule for investigation wisp
 scripts/
-  plan_manager.py            Plan CRUD and prerequisite checking (run via uv)
+  plan_manager.py            Plan CRUD, prerequisite checking, portability audit (run via uv)
 protocols/
   PLANS.md                   Planning protocol (copied to AGENTS/PLANS.md during bootstrap)
+```
+
+Per-plan folder layout after `/bdplan init`:
+
+```
+docs/plans/<plan-id>/
+  plan.md                    The plan (status, phase log, objective, motivation, approach, epics, gates, risks, success criteria)
+  README.md                  Orientation and file map for cold readers
+  context.md                 Project environment snapshot at plan-authoring time
+  findings/                  Investigation experiment results
+  references/                Inlined upstream issue bodies (one file per non-excluded issue)
+  reviews/                   Reviewer verdicts (one file per review pass)
+  assets/                    Diagrams, attachments
+  scope-answers.md           Scoping questionnaire (complex scoping only)
+  upstream-triage.md         Upstream triage working file
 ```

@@ -62,7 +62,7 @@ Run bdplan init for Claude Code:
 1. Run `uv run ${SKILL_DIR}/scripts/plan_manager.py check --json-output` and parse the JSON output.
    If status is "ok" (prereqs already cached), skip to step 3.
 2. If status is "system_deps_missing" or "bd_not_initialized", return the JSON as-is. Do nothing else.
-3. mkdir -p docs/plans
+3. mkdir -p docs/plans  (per-incubator plan roots like `Incubator/<slug>/plans/` are created lazily when an incubator-scoped plan is first initialized)
 4. mkdir -p AGENTS
 5. If AGENTS/PLANS.md does not exist, copy ${SKILL_DIR}/protocols/PLANS.md to ./AGENTS/PLANS.md. Record this action.
 6. If CLAUDE.md does not exist, create it with:
@@ -150,13 +150,24 @@ uv run ${SKILL_DIR}/scripts/plan_manager.py list --json-output
 
 If match found, ask: continue existing or start fresh?
 
-### 1.2 — Create plan directory
+### 1.2 — Determine plan root (incubator routing)
+
+Before creating the plan directory, decide whether it belongs in a per-incubator root or the vault-default `docs/plans/`.
+
+1. **Auto-detect from CWD.** If `pwd` is inside `Incubator/<slug>/...`, propose `<slug>` as the incubator.
+2. **Confirm with the operator.** Ask: *"Is this plan scoped to an incubator? If yes, which? (detected: `<slug or none>`)"* Accept the slug, `none` for `docs/plans/`, or a different incubator name. If the operator names an incubator that does not yet exist under `Incubator/`, confirm before creating it.
+3. **Pass the answer to init.** Use `--incubator <slug>` (or omit for `docs/plans/`).
+
+### 1.3 — Create plan directory
 
 ```bash
-PLAN_JSON=$(uv run ${SKILL_DIR}/scripts/plan_manager.py init "${objective}")
+# Pass --incubator <slug> when the plan is incubator-scoped; omit otherwise.
+PLAN_JSON=$(uv run ${SKILL_DIR}/scripts/plan_manager.py init "${objective}" ${incubator:+--incubator "${incubator}"})
 plan_id=$(echo "$PLAN_JSON" | uv run ${SKILL_DIR}/scripts/plan_manager.py json-get plan_id)
 plan_dir=$(echo "$PLAN_JSON" | uv run ${SKILL_DIR}/scripts/plan_manager.py json-get plan_dir)
 ```
+
+Plan dirs land under `Incubator/<slug>/plans/<plan-id>/` when an incubator was named, otherwise under `docs/plans/<plan-id>/`. Numbering is global across all roots.
 
 Creates `${plan_dir}/`, `findings/`, `assets/`, `references/`, `reviews/`, initial `plan.md` with `status: scoping`, `README.md` (orientation), and `context.md` (tool-inventory snapshot with hostname+date header). Tool detection is best-effort — missing tools are recorded as `not present` and never block init.
 

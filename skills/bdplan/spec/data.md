@@ -6,9 +6,9 @@ REQ-DATA-001: Plan IDs follow the format `plan-NNN-<user>-<hash>` where NNN is a
 Rationale: Predictable, sortable IDs enable listing and selection; the hash prevents collisions when multiple plans share an index.
 Verification: `make_plan_id` in plan_manager.py; SKILL.md Phase 3 plan.md template shows `plan-NNN-user-hash`.
 
-REQ-DATA-002: Plan directories are stored under `docs/plans/<plan-id>/` with subdirectories `findings/`, `assets/`, `references/`, and `reviews/`, plus root files `plan.md`, `README.md`, and `context.md` (seeded at init time by the portability contract).
-Rationale: Versioned in git, reviewable in PRs, co-located with the code they describe. `references/` and `reviews/` carry portability scaffolding (spec/portability.md REQ-PORT-005/006).
-Verification: `make_plan_dir` creates findings/ and assets/; `seed_portability_scaffolding` creates references/ and reviews/ plus README.md and context.md; `init` command invokes both.
+REQ-DATA-002: Plan directories are stored under one of two roots — either `docs/plans/<plan-id>/` (vault-default) or `Incubator/<slug>/plans/<plan-id>/` (incubator-scoped). Both roots use the same per-plan layout: subdirectories `findings/`, `assets/`, `references/`, and `reviews/`, plus root files `plan.md`, `README.md`, and `context.md` (seeded at init time by the portability contract). Plan numbering (the `NNN` in plan IDs) is global across all roots.
+Rationale: Versioned in git, reviewable in PRs, co-located with the code they describe. Incubator-scoped placement keeps plan artifacts adjacent to the incubator they belong to (matching deep-research's per-incubator routing); the global numbering preserves unambiguous cross-references. `references/` and `reviews/` carry portability scaffolding (spec/portability.md REQ-PORT-005/006).
+Verification: `resolve_plans_dir(incubator)` returns the appropriate root; `make_plan_dir(plan_id, plans_dir)` creates findings/ and assets/ under it; `seed_portability_scaffolding` creates references/ and reviews/ plus README.md and context.md; `init` command invokes both. `list_plan_roots` enumerates every root for listing and global numbering.
 
 ## plan.md Schema
 

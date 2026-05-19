@@ -6,7 +6,11 @@ All planning uses the `/bdplan` skill. Do not use native plan mode.
 
 **Task tracking:** `bd` (beads). Never use `TodoWrite`, markdown checklists, or inline task lists.
 
-**Plans:** stored in `docs/plans/` as versioned markdown.
+**Plans:** stored as versioned markdown under one of two roots:
+- `docs/plans/<plan-id>/` — vault-default (no incubator scope)
+- `Incubator/<slug>/plans/<plan-id>/` — when the plan is scoped to a specific incubator
+
+The plan root is chosen at scoping time (Phase 1.2 of bdplan SKILL.md). When `pwd` is inside `Incubator/<slug>/...`, that incubator is the auto-detected default. Numbering (the `NNN` in plan IDs) is global across all roots.
 
 **Commands:**
 - `/bdplan init` — initialize bdplan for this project

@@ -24,6 +24,7 @@ from pathlib import Path
 import click
 
 PLANS_DIR = Path("docs/plans")
+INCUBATOR_PARENT = Path("Incubator")
 CONFIG_DIR = Path(".claude/.skill-bdplan")
 CONFIG_FILE = CONFIG_DIR / "config.local.json"
 GITIGNORE_FILE = CONFIG_DIR / ".gitignore"
@@ -55,12 +56,135 @@ def get_git_user() -> str:
     ).strip("-")
 
 
+RESEARCH_DIR = Path("docs/research")
+
+
+def list_plan_roots() -> list[Path]:
+    """Return every directory that may hold `plan-*` dirs.
+
+    Globally numbered plans live across `docs/plans/` and per-incubator
+    `Incubator/<slug>/plans/` roots; this function returns all that exist on
+    disk so callers can enumerate or count across the whole vault.
+    """
+    return _list_kind_roots("plans", PLANS_DIR)
+
+
+def list_research_roots() -> list[Path]:
+    """Return every directory that may hold research item dirs.
+
+    Research lives across `docs/research/` (deep-research vault-default) and
+    per-incubator `Incubator/<slug>/research/` roots. Items are either
+    deep-research topics (`NNN-topic-slug/` with `plan.yaml`) or rehoused
+    bdplan plans (`plan-NNN-…/` with `plan.md`).
+    """
+    return _list_kind_roots("research", RESEARCH_DIR)
+
+
+def _list_kind_roots(kind_dir: str, default_root: Path) -> list[Path]:
+    roots: list[Path] = []
+    if default_root.exists():
+        roots.append(default_root)
+    if INCUBATOR_PARENT.exists():
+        for inc in INCUBATOR_PARENT.iterdir():
+            if not inc.is_dir():
+                continue
+            p = inc / kind_dir
+            if p.exists():
+                roots.append(p)
+    return roots
+
+
+def _scope_for_root(root: Path, default_root: Path) -> str | None:
+    """Return the incubator slug for a root, or None for the vault-default."""
+    if root == default_root:
+        return None
+    try:
+        return root.relative_to(INCUBATOR_PARENT).parts[0]
+    except (ValueError, IndexError):
+        return None
+
+
+def _research_item_info(d: Path) -> dict | None:
+    """Inspect a research-root child and classify it.
+
+    Returns a dict for tracked items (deep-research topics or rehoused
+    bdplan plans); returns None for flat `.md` notes or other unstructured
+    siblings that just happen to live alongside research items.
+    """
+    if not d.is_dir():
+        return None
+    plan_yaml = d / "plan.yaml"
+    plan_md = d / "plan.md"
+
+    if plan_yaml.exists():
+        topic = d.name
+        try:
+            for line in plan_yaml.read_text().splitlines():
+                stripped = line.strip()
+                if stripped.startswith("topic:"):
+                    topic = stripped.split(":", 1)[1].strip().strip('"').strip("'")
+                    break
+        except OSError:
+            pass
+        return {"id": d.name, "topic": topic, "kind": "research", "path": str(d)}
+
+    if plan_md.exists() and d.name.startswith("plan-"):
+        topic = d.name
+        try:
+            for line in plan_md.read_text().splitlines():
+                if line.startswith("# Plan: "):
+                    topic = line[8:].strip()
+                    break
+        except OSError:
+            pass
+        return {"id": d.name, "topic": topic, "kind": "rehoused-plan", "path": str(d)}
+
+    return None
+
+
+def detect_incubator_from_cwd() -> str | None:
+    """Return the incubator slug if CWD is inside `Incubator/<slug>/...`."""
+    try:
+        cwd = Path.cwd().resolve()
+    except OSError:
+        return None
+    try:
+        parent_abs = INCUBATOR_PARENT.resolve()
+    except (OSError, FileNotFoundError):
+        return None
+    try:
+        rel = cwd.relative_to(parent_abs)
+    except ValueError:
+        return None
+    parts = rel.parts
+    return parts[0] if parts else None
+
+
+def resolve_plans_dir(incubator: str | None = None) -> Path:
+    """Choose the plans root for a new plan.
+
+    - explicit `incubator` → `Incubator/<slug>/plans`
+    - else falls back to `docs/plans`
+    """
+    if incubator:
+        return INCUBATOR_PARENT / incubator / "plans"
+    return PLANS_DIR
+
+
 def get_next_index() -> int:
-    """Get next plan index by counting existing plan dirs."""
-    if not PLANS_DIR.exists():
-        return 1
-    existing = [d for d in PLANS_DIR.iterdir() if d.is_dir() and d.name.startswith("plan-")]
-    return len(existing) + 1
+    """Get next plan index by counting every plan-* dir vault-wide.
+
+    Counts plan-* directories under both plan roots and research roots so
+    rehoused plans (e.g. an old bdplan moved into `Incubator/<slug>/research/`)
+    still consume a number and IDs stay globally unique.
+    """
+    total = 0
+    for root in (*list_plan_roots(), *list_research_roots()):
+        total += sum(
+            1 for d in root.iterdir()
+            if d.is_dir() and d.name.startswith("plan-")
+        )
+    return total + 1
 
 
 def make_plan_id(objective: str) -> str:
@@ -72,9 +196,14 @@ def make_plan_id(objective: str) -> str:
     return f"plan-{idx}-{user}-{h}"
 
 
-def make_plan_dir(plan_id: str) -> Path:
-    """Create plan directory structure."""
-    plan_dir = PLANS_DIR / plan_id
+def make_plan_dir(plan_id: str, plans_dir: Path | None = None) -> Path:
+    """Create plan directory structure under the given root.
+
+    `plans_dir` defaults to `docs/plans` for back-compat; callers that
+    target an incubator should pass `resolve_plans_dir(incubator)`.
+    """
+    root = plans_dir if plans_dir is not None else PLANS_DIR
+    plan_dir = root / plan_id
     (plan_dir / "findings").mkdir(parents=True, exist_ok=True)
     (plan_dir / "assets").mkdir(parents=True, exist_ok=True)
     return plan_dir
@@ -602,17 +731,29 @@ def json_get(keys: tuple[str, ...]):
 
 @cli.command()
 @click.argument("objective")
-def init(objective: str):
+@click.option(
+    "--incubator", default=None,
+    help="Incubator slug to scope plan to (e.g. 'bookpipe'). "
+         "If omitted, CWD is checked for an Incubator/<slug>/ prefix; "
+         "otherwise plan lands in docs/plans/.",
+)
+def init(objective: str, incubator: str | None):
     """Initialize a new plan directory with seed documents."""
+    if incubator is None:
+        incubator = detect_incubator_from_cwd()
+    plans_dir = resolve_plans_dir(incubator)
+    plans_dir.mkdir(parents=True, exist_ok=True)
     user = get_git_user()
     plan_id = make_plan_id(objective)
-    plan_dir = make_plan_dir(plan_id)
+    plan_dir = make_plan_dir(plan_id, plans_dir)
     plan_md = seed_plan_md(plan_dir, plan_id, objective, user)
     scaffolding = seed_portability_scaffolding(plan_dir, plan_id, objective, user)
 
     result = {
         "plan_id": plan_id,
         "plan_dir": str(plan_dir),
+        "plans_root": str(plans_dir),
+        "incubator": incubator,
         "plan_md": str(plan_md),
         **scaffolding,
     }
@@ -647,46 +788,73 @@ def triage(plan_dir: str, objective: str, issues_json: str):
 @cli.command("list")
 @click.option("--json-output", "as_json", is_flag=True)
 def list_plans(as_json: bool):
-    """List all plans with status."""
-    if not PLANS_DIR.exists():
-        if as_json:
-            click.echo("[]")
-        else:
-            click.echo("No plans directory found.")
-        return
-
+    """List all plans and research items, across vault-default + Incubator roots."""
     plans = []
-    for d in sorted(PLANS_DIR.iterdir()):
-        if not d.is_dir() or not d.name.startswith("plan-"):
-            continue
-        plan_md = d / "plan.md"
-        if not plan_md.exists():
-            continue
+    for root in list_plan_roots():
+        incubator = _scope_for_root(root, PLANS_DIR)
+        for d in sorted(root.iterdir()):
+            if not d.is_dir() or not d.name.startswith("plan-"):
+                continue
+            plan_md = d / "plan.md"
+            if not plan_md.exists():
+                continue
 
-        text = plan_md.read_text()
-        status = "unknown"
-        objective = d.name
-        for line in text.splitlines():
-            if line.startswith("# Plan: "):
-                objective = line[8:].strip()
-            if line.startswith("**Status:**"):
-                status = line.split("**Status:**")[1].strip()
+            text = plan_md.read_text()
+            status = "unknown"
+            objective = d.name
+            for line in text.splitlines():
+                if line.startswith("# Plan: "):
+                    objective = line[8:].strip()
+                if line.startswith("**Status:**"):
+                    status = line.split("**Status:**")[1].strip()
 
-        plans.append({
-            "id": d.name,
-            "objective": objective,
-            "status": status,
-            "path": str(d),
-        })
+            plans.append({
+                "id": d.name,
+                "objective": objective,
+                "status": status,
+                "incubator": incubator,
+                "path": str(d),
+            })
+    plans.sort(key=lambda p: p["id"])
+
+    research = []
+    for root in list_research_roots():
+        incubator = _scope_for_root(root, RESEARCH_DIR)
+        for d in sorted(root.iterdir()):
+            info = _research_item_info(d)
+            if info is None:
+                continue
+            research.append({
+                **info,
+                "incubator": incubator,
+            })
+    research.sort(key=lambda r: (r["incubator"] or "", r["id"]))
 
     if as_json:
-        click.echo(json.dumps(plans, indent=2))
+        click.echo(json.dumps({"plans": plans, "research": research}, indent=2))
+        return
+
+    if not plans:
+        click.echo("No plans found.")
     else:
-        if not plans:
-            click.echo("No plans found.")
-            return
+        click.echo("Plans:")
         for p in plans:
-            click.echo(f"  {p['id']:<35} {p['objective']:<40} status: {p['status']}")
+            scope = p["incubator"] or "docs"
+            click.echo(
+                f"  {p['id']:<35} [{scope:<18}] "
+                f"{p['objective']:<40} status: {p['status']}"
+            )
+
+    if research:
+        click.echo("")
+        click.echo("Research:")
+        for r in research:
+            scope = r["incubator"] or "docs"
+            kind_tag = "rehoused-plan" if r["kind"] == "rehoused-plan" else "research"
+            click.echo(
+                f"  {r['id']:<35} [{scope:<18}] "
+                f"{r['topic']:<40} kind: {kind_tag}"
+            )
 
 
 @cli.command()

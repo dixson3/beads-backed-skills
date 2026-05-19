@@ -41,7 +41,7 @@ bd close ${EPIC} --reason "Plan complete" --json
 Set plan.md status to `complete`. Commit and push:
 
 ```bash
-git add docs/plans/ .beads/
+git add "${plan_dir}" .beads/  # plan_dir may live under docs/plans/ or Incubator/<slug>/plans/
 git commit -m "bdplan: complete ${plan_id}"
 git pull --rebase && bd dolt push && git push
 ```

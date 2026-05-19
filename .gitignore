@@ -6,3 +6,7 @@
 
 # Claude Code agent worktrees (ephemeral, per-agent isolated copies)
 .claude/worktrees/
+
+# Python bytecode cache
+__pycache__/
+*.pyc

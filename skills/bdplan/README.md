@@ -14,7 +14,7 @@ Claude Code has a native plan mode, but it treats planning as a single-session, 
 
 - **You want upstream issue context in the plan.** bdplan scans GitHub/GitLab issues related to the objective, lets you triage them (include, exclude, partial, supersede), and wires them into the plan's epics. After execution, the reconcile phase automatically updates or closes those upstream issues with references to what was done.
 
-- **Plans should be durable artifacts.** Native plan mode produces ephemeral output that vanishes with the session. bdplan writes plans as markdown in `docs/plans/` — versioned in git, reviewable in PRs, searchable in the future. The plan document records scoping decisions, investigation findings, approach rationale, and execution status.
+- **Plans should be durable artifacts.** Native plan mode produces ephemeral output that vanishes with the session. bdplan writes plans as markdown — versioned in git, reviewable in PRs, searchable in the future. Plans land under `docs/plans/` by default, or under `Incubator/<slug>/plans/` when the plan is scoped to a specific incubator (auto-detected from CWD, confirmed during scoping). The plan document records scoping decisions, investigation findings, approach rationale, and execution status.
 
 ### How it works
 
@@ -123,10 +123,10 @@ protocols/
   PLANS.md                   Planning protocol (copied to AGENTS/PLANS.md during bootstrap)
 ```
 
-Per-plan folder layout after `/bdplan init`:
+Per-plan folder layout after `/bdplan init` (plan root is either `docs/plans/` or `Incubator/<slug>/plans/` depending on the answer to the scoping incubator question; numbering is global):
 
 ```
-docs/plans/<plan-id>/
+<plan-root>/<plan-id>/
   plan.md                    The plan (status, phase log, objective, motivation, approach, epics, gates, risks, success criteria)
   README.md                  Orientation and file map for cold readers
   context.md                 Project environment snapshot at plan-authoring time

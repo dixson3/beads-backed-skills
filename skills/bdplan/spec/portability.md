@@ -12,7 +12,7 @@ Verification: `plan_manager.py::PORTABILITY_ACTIVATION_DATE` matches the date in
 
 ## Contract
 
-REQ-PORT-001: Every plan folder under `docs/plans/<plan-id>/` must contain `README.md` at the plan root with file-map and reading-order sections.
+REQ-PORT-001: Every plan folder (under either `docs/plans/<plan-id>/` or `Incubator/<slug>/plans/<plan-id>/`) must contain `README.md` at the plan root with file-map and reading-order sections.
 Rationale: The README is the entry point for a cold reader. Without it, the reader has no orientation to the folder's contents.
 Verification: `plan_manager.py audit` checks file presence and required section headers `File map` and `Reading order`.
 

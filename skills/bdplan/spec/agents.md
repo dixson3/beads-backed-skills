@@ -78,9 +78,9 @@ Verification: `agents/captor.md` Rules enumerate these constraints.
 
 ## Planner
 
-REQ-AGENT-050: The planner writes only to `docs/plans/<plan-id>/`.
-Rationale: Plan synthesis should not modify project code, config, or other plans.
-Verification: planner.md Rules: "Write only to `docs/plans/<plan-id>/`".
+REQ-AGENT-050: The planner writes only to its resolved plan root — `docs/plans/<plan-id>/` for vault-default plans, or `Incubator/<slug>/plans/<plan-id>/` for incubator-scoped plans. The root is resolved during scoping (SKILL.md Phase 1.2) and passed to the planner as `plan_dir`.
+Rationale: Plan synthesis should not modify project code, config, or other plans. The planner is root-agnostic: it writes to whatever `plan_dir` it receives.
+Verification: planner.md Rules: "Write only to `<plan_dir>` (the resolved root)".
 
 REQ-AGENT-051: The planner writes plan.md per the structure defined in SKILL.md Phase 3.
 Rationale: A single plan.md schema ensures all downstream consumers (executor, reconciler, operator) can parse it.

@@ -9,7 +9,7 @@ description = "Plan objective"
 required = true
 
 [vars.plan_dir]
-description = "Plan directory path (e.g., docs/plans/plan-001-dixson3-abc123)"
+description = "Plan directory path (e.g., docs/plans/plan-001-dixson3-abc123 or Incubator/<slug>/plans/plan-001-dixson3-abc123)"
 required = true
 
 [[steps]]

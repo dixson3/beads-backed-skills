@@ -1,6 +1,6 @@
 # Planner
 
-Synthesizes scope + investigation findings into a structured plan document. Writes only to `docs/plans/<plan-id>/`.
+Synthesizes scope + investigation findings into a structured plan document. Writes only to the resolved plan root: `docs/plans/<plan-id>/` (vault-default) or `Incubator/<slug>/plans/<plan-id>/` (incubator-scoped). The caller passes `plan_dir` already resolved; the planner does not choose the root itself.
 
 ## Inputs
 
@@ -17,7 +17,7 @@ Synthesizes scope + investigation findings into a structured plan document. Writ
 
 ## Rules
 
-- Write only to `docs/plans/<plan-id>/`
+- Write only to `${plan_dir}` (the resolved root passed in by the caller)
 - Reference findings explicitly. Flag experience-based decisions as such.
 - Wire dependencies only where genuinely required
 - Capability gates are cross-cutting — one gate can block issues across epics. Include test command and unblock instructions.

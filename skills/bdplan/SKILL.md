@@ -17,8 +17,6 @@ allowed-tools:
   - WebFetch
   - Agent
   - AskUserQuestion
-  - EnterWorktree
-  - ExitWorktree
 ---
 
 # bdplan
@@ -28,11 +26,29 @@ allowed-tools:
 ## SKILL_DIR
 
 ```bash
-SKILL_DIR=$(find ~/.claude/skills /workspace/.claude/skills .claude/skills -maxdepth 1 -name bdplan -type d 2>/dev/null | head -1)
+GIT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo .)
+SKILL_DIR=$(find ~/.claude/skills ~/.agents/skills "$GIT_ROOT/.claude/skills" "$GIT_ROOT/.agents/skills" .claude/skills .agents/skills -maxdepth 1 -name bdplan -type d 2>/dev/null | head -1)
 [ -z "$SKILL_DIR" ] && { echo "ERROR: bdplan skill directory not found"; exit 1; }
 ```
 
 All skill-internal paths use `${SKILL_DIR}/` prefix.
+
+## Reference skills
+
+bdplan is a beads-backed skill. It does not re-document `bd` usage — it relies on three
+companion skills and points at them where a `bd` pattern needs explanation:
+
+- **`beads`** — the canonical routine loop (`bd prime`, `ready`, `show`, `claim`, `create`,
+  `close`). Baseline, installed by `bd init`.
+- **`beads-extra`** — direct-CLI gotchas this skill's commands depend on: issue-type and
+  gate semantics, dependency-edge mutation (`bd dep add` is additive; there is no
+  `bd update --deps`), defensive `--json` parsing, transactional `bd batch`, and the
+  `bd mol pour` output shape (`new_epic_id`, `id_mapping`).
+- **`beads-authoring`** — the formula / `mol pour` / coordinator / `coordinate`
+  conventions this skill is built on.
+
+When in doubt about a `bd` behavior, consult `beads-extra` rather than inferring from
+the snippets below.
 
 ## Invocation
 
@@ -46,11 +62,25 @@ All skill-internal paths use `${SKILL_DIR}/` prefix.
 
 ## Pre-flight
 
-**Run on every invocation except `/bdplan init`.** Read `.claude/.skill-bdplan/config.local.json`:
+**Run on every invocation except `/bdplan init`.** Run the preflight and branch on its
+status (it follows the Skill Surface Convention — see the `skill-authoring` skill):
 
-- **File does not exist**: tell the user to run `/bdplan init` to set up this project. Stop.
-- **`"ignore-skill": true`**: exit silently, fall back to native plan mode.
-- **`"prereqs-present": true`**: proceed to the requested command.
+```bash
+uv run ${SKILL_DIR}/scripts/plan_manager.py check --json-output
+```
+
+- **`ignored`** (operator set `"ignore-skill": true` in `.bdplan.local.json`): exit
+  silently, fall back to native plan mode.
+- **`ok`**: proceed to the requested command. (`instructions` may carry a non-blocking
+  `update available` note for `PLANS.md`.)
+- **`system_deps_missing` / `bd_not_initialized` / `rule_missing` / `rule_drift` /
+  `rule_deprecated` / `manifest_*`**: tell the user to run `/bdplan init` (or follow the
+  `instructions` in the result, e.g. `init --force` for drift). Stop.
+
+Config vs state: `ignore-skill` is an operator decision in `.bdplan.local.json` (repo
+root, gitignored). The `prereqs-present` cache is runtime state in
+`.state/bdplan/preflight.json`. The installed rule `.agents/rules/PLANS.md` is
+hash-checked against `protocols/manifest.json`.
 
 ## /bdplan init
 
@@ -59,24 +89,27 @@ Initialize bdplan for the current project. Spawn a sub-agent (`Agent` with `suba
 ```
 Run bdplan init for Claude Code:
 
-1. Run `uv run ${SKILL_DIR}/scripts/plan_manager.py check --json-output` and parse the JSON output.
-   If status is "ok" (prereqs already cached), skip to step 3.
+1. Run `uv run ${SKILL_DIR}/scripts/plan_manager.py check --json-output` and parse the JSON.
 2. If status is "system_deps_missing" or "bd_not_initialized", return the JSON as-is. Do nothing else.
-3. mkdir -p docs/plans  (per-incubator plan roots like `Incubator/<slug>/plans/` are created lazily when an incubator-scoped plan is first initialized)
-4. mkdir -p .claude/rules
-5. If .claude/rules/PLANS.md does not exist, copy ${SKILL_DIR}/protocols/PLANS.md to ./.claude/rules/PLANS.md. Record this action.
-   Do NOT create or modify CLAUDE.md, AGENTS.md, or AGENTS/PLANS.md — the
-   planning protocol is Claude-local (.claude/rules/ is auto-loaded; keep it
-   out of tracked, portable instruction surfaces).
-6. Return JSON: {"status":"ready","actions":["<list of actions taken, empty if none>"]}
+3. mkdir -p docs/plans  (per-incubator plan roots like `Incubator/<slug>/plans/` are created lazily).
+4. mkdir -p .agents/rules
+5. Install the companion rule: copy ${SKILL_DIR}/protocols/PLANS.md to ./.agents/rules/PLANS.md
+   when it is missing, when --upgrade is passed, or when --force is passed (the only way to
+   clobber a hand-edited rule). Never write to AGENTS/ and never edit CLAUDE.md. Record this.
+6. Gitignore stewardship: ensure ./.gitignore contains the anchored lines `/.bdplan.local.json`
+   and `/.state/` (add if absent; no globs). Record this.
+7. Return JSON: {"status":"ready","actions":["<list of actions taken, empty if none>"]}
 ```
 
 Handle the sub-agent result:
 
 - **"ready"**: print actions taken, then show usage.
-- **"system_deps_missing"** or **"bd_not_initialized"**: print the missing items and instructions. Ask: "Would you like to (1) stop and fix the prerequisites, or (2) ignore bdplan in this project?" If ignore, write `{"ignore-skill":true}` to `.claude/.skill-bdplan/config.local.json` (mkdir -p the directory, ensure `config.local.json` is in `.claude/.skill-bdplan/.gitignore`), then exit.
+- **"system_deps_missing"** or **"bd_not_initialized"**: print the missing items and instructions. Ask: "Would you like to (1) stop and fix the prerequisites, or (2) ignore bdplan in this project?" If ignore, write `{"ignore-skill":true}` to `.bdplan.local.json` at the repo root, and ensure `/.bdplan.local.json` is in `.gitignore`, then exit.
 
 **Rule:** All task tracking uses `bd`. Never use TodoWrite, markdown checklists, or inline task lists.
+
+After editing `protocols/PLANS.md`, refresh the manifest hash:
+`uv run ${SKILL_DIR}/scripts/manifest_update.py ${SKILL_DIR}/protocols` (add `--minor`/`--major` for non-patch bumps), and commit the rule + `manifest.json` together.
 
 ## Phase Model
 
@@ -169,7 +202,7 @@ Plan dirs land under `Incubator/<slug>/plans/<plan-id>/` when an incubator was n
 
 Creates `${plan_dir}/`, `findings/`, `assets/`, `references/`, `reviews/`, initial `plan.md` with `status: scoping`, `README.md` (orientation), and `context.md` (tool-inventory snapshot with hostname+date header). Tool detection is best-effort — missing tools are recorded as `not present` and never block init.
 
-### 1.3 — Upstream issue scan
+### 1.4 — Upstream issue scan
 
 If upstream tracking configured (not `none`):
 
@@ -186,7 +219,7 @@ Record decisions in plan.md **Upstream Issues** section.
 
 `triage` also writes `references/upstream-<N>.md` — one file per issue, containing the full (untruncated) body, URL, labels, and state. These files are **regenerated on every re-triage**; operator hand-edits will be clobbered. The 200-char truncation remains in `upstream-triage.md` for readability.
 
-### 1.4 — Scoping
+### 1.5 — Scoping
 
 - **Simple** (<=3 questions): ask directly about objective, constraints, investigation needs, scope boundaries, and success criteria. Update plan.md after each.
 - **Complex**: generate questionnaire:
@@ -197,7 +230,7 @@ uv run ${SKILL_DIR}/scripts/plan_manager.py scope "${plan_dir}" "${objective}"
 
 Direct operator to fill in `scope-answers.md` and say "answers ready".
 
-### 1.5 — Flush plan.md
+### 1.6 — Flush plan.md
 
 Write all scoping decisions. Update status:
 
@@ -232,10 +265,12 @@ PLAN CONTEXT: {scoping decisions and approach hypothesis}
 
 Independent experiments run in parallel.
 
-Track via wisp:
+Track via wisp. Capture the wisp id so it can be burned after investigation (§4.7):
 
 ```bash
-bd mol wisp plan-investigate --var objective="${objective}" --var plan_dir="${plan_dir}"
+INVESTIGATION_WISP_ID=$(bd mol wisp plan-investigate \
+  --var objective="${objective}" --var plan_dir="${plan_dir}" --json \
+  | uv run ${SKILL_DIR}/scripts/plan_manager.py json-get new_epic_id)
 ```
 
 ### Post-investigation
@@ -391,8 +426,18 @@ RESULT=$(bd mol pour plan-execute --var objective="${objective}" --var plan_dir=
 rm -f .beads/formulas/plan-execute.formula.toml
 
 EPIC=$(echo "$RESULT" | uv run ${SKILL_DIR}/scripts/plan_manager.py json-get new_epic_id)
+# A gate-type formula step yields TWO beads: a task wrapper (key "plan-execute.start-gate",
+# what downstream --deps should reference) and the real gate (key "plan-execute.gate-start-gate",
+# what `bd gate resolve` must target). See beads-authoring → Formula gate steps.
 START_GATE=$(echo "$RESULT" | uv run ${SKILL_DIR}/scripts/plan_manager.py json-get id_mapping "plan-execute.start-gate")
+START_GATE_BEAD=$(echo "$RESULT" | uv run ${SKILL_DIR}/scripts/plan_manager.py json-get id_mapping "plan-execute.gate-start-gate")
 ```
+
+`new_epic_id` and `id_mapping` are the pour result keys — see `beads-extra` →
+*`bd mol pour` output shape*. `json-get` is bdplan's hardened defensive JSON parser
+(`bd` output may be a multi-document array; see `beads-extra` → *`--json` is not always a
+single JSON document*). Use `${START_GATE}` for `--deps` wiring (§4.3) and
+`${START_GATE_BEAD}` for `bd gate resolve` (§5.2).
 
 ### 4.3 — Create beads from plan.md
 
@@ -418,7 +463,9 @@ bd update ${ISSUE_BEAD} --metadata '{"upstream":"#142","disposition":"include"}'
 
 ### 4.5 — Create capability gates (if any)
 
-Create each gate individually (creates need IDs, cannot be batched):
+Gates are first-class beads (`-t gate`); resolve with `bd gate resolve`. See
+`beads-extra` → *Gates*. Create each gate individually (creates need IDs, cannot be
+batched):
 
 ```bash
 CAP_GATE=$(bd create "Gate: ${gate_name}" \
@@ -435,10 +482,10 @@ DEP_OPS=""
 DEP_OPS+="dep add ${ISSUE_BEAD_1} ${CAP_GATE}\n"
 DEP_OPS+="dep add ${ISSUE_BEAD_2} ${CAP_GATE}\n"
 # ... one line per dep link ...
-printf "${DEP_OPS}" | bd batch -m "plan-${plan_id} dep wiring"
+printf '%b' "${DEP_OPS}" | bd batch -m "plan-${plan_id} dep wiring"
 ```
 
-**Rule:** Never call `bd dep add A B` as individual shell commands — always accumulate into `DEP_OPS` and pipe once. An empty `DEP_OPS` is a no-op (skip the printf).
+**Rule:** Never call `bd dep add A B` as individual shell commands — always accumulate into `DEP_OPS` and pipe once through `bd batch`. An empty `DEP_OPS` is a no-op (skip the printf). For why (single dolt transaction, atomic rollback) see `beads-extra` → *Bulk intake*.
 
 ### 4.6 — Create reconcile gate and step
 
@@ -486,7 +533,7 @@ Filter for plans with status `approved` and open start gates.
 ### 5.2 — Resolve start gate
 
 ```bash
-bd gate resolve ${START_GATE}
+bd gate resolve ${START_GATE_BEAD}   # the gate-* bead, not the wrapper task ${START_GATE}
 uv run ${SKILL_DIR}/scripts/plan_manager.py update-status "${plan_dir}" "executing" -m "start gate resolved"
 ```
 

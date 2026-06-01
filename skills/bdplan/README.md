@@ -37,7 +37,7 @@ Checked at runtime by `scripts/plan_manager.py check`:
 | Tool | Version | Install |
 |------|---------|---------|
 | `uv` | any | https://docs.astral.sh/uv/ |
-| `bd` | >= 0.60 | https://github.com/steveyegge/beads |
+| `bd` | >= 1.0.5 | https://github.com/gastownhall/beads |
 | `git` | any | system package manager |
 
 Optional:
@@ -45,7 +45,7 @@ Optional:
 - `gh` — GitHub CLI (for upstream issue tracking)
 - `glab` — GitLab CLI (for upstream issue tracking)
 
-Run `/bdplan init` in your project to check prerequisites and set up `.claude/rules/PLANS.md` (Claude-local; CLAUDE.md is not modified) automatically.
+Run `/bdplan init` in your project to check prerequisites and install the `PLANS.md` companion rule to `.agents/rules/` automatically.
 
 ## Install
 
@@ -119,8 +119,10 @@ formulas/
   plan-investigate.formula.toml  Beads molecule for investigation wisp
 scripts/
   plan_manager.py            Plan CRUD, prerequisite checking, portability audit (run via uv)
+  manifest_update.py         Vendored manifest hash/version helper (run via uv)
 protocols/
-  PLANS.md                   Planning protocol (copied to .claude/rules/PLANS.md during bootstrap)
+  PLANS.md                   Planning protocol (installed to .agents/rules/PLANS.md by /bdplan init)
+  manifest.json              Hash manifest for PLANS.md
 ```
 
 Per-plan folder layout after `/bdplan init` (plan root is either `docs/plans/` or `Incubator/<slug>/plans/` depending on the answer to the scoping incubator question; numbering is global):

@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "files": {
+    "RESEARCH.md": {
+      "sha256": "c4c232354af84636bb32d6a4c7b53fd3aa0bdd375760eea183d0f1d9e5275fe3",
+      "version": "1.0.0",
+      "deprecated": false,
+      "previous_versions": []
+    }
+  }
+}

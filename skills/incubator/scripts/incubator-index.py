@@ -1,0 +1,150 @@
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.11"
+# dependencies = ["pyyaml>=6"]
+# ///
+"""Index the Incubator/ tree: managed incubators by state + staleness, unmanaged by mtime.
+
+Managed = state file frontmatter carries both `status` and `last_reviewed`.
+Unmanaged = anything else (existing dirs/single files); listed, never mutated.
+"""
+from __future__ import annotations
+
+import argparse
+import datetime as dt
+import json
+import sys
+from pathlib import Path
+
+import yaml
+
+PRIORITY_RANK = {"high": 0, "normal": 1, "low": 2}
+STATUS_VALUES = {"incubating", "scoping", "exploring", "converging",
+                 "concluded", "parked", "abandoned"}
+
+
+def parse_frontmatter(path: Path) -> dict | None:
+    try:
+        text = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return None
+    if not text.startswith("---"):
+        return None
+    end = text.find("\n---", 3)
+    if end == -1:
+        return None
+    try:
+        data = yaml.safe_load(text[3:end])
+    except yaml.YAMLError:
+        return None
+    return data if isinstance(data, dict) else None
+
+
+def state_file(entry: Path) -> Path | None:
+    """The file whose frontmatter represents the incubator's state."""
+    if entry.is_dir():
+        readme = entry / "README.md"
+        return readme if readme.is_file() else None
+    if entry.is_file() and entry.suffix == ".md":
+        return entry
+    return None
+
+
+def collect(root: Path):
+    managed, unmanaged = [], []
+    for entry in sorted(root.iterdir()):
+        if entry.name.startswith(".") or entry.name == "INDEX.md":
+            continue
+        sf = state_file(entry)
+        name = entry.name[:-3] if entry.is_file() else entry.name
+        if sf is None:
+            unmanaged.append({"name": name, "path": str(entry),
+                              "mtime": entry.stat().st_mtime, "reason": "no state file"})
+            continue
+        fm = parse_frontmatter(sf)
+        if not fm or "status" not in fm or "last_reviewed" not in fm:
+            unmanaged.append({"name": name, "path": str(entry),
+                              "mtime": sf.stat().st_mtime,
+                              "reason": "frontmatter missing status/last_reviewed"})
+            continue
+        managed.append({
+            "name": fm.get("title", name),
+            "path": str(entry),
+            "status": str(fm.get("status", "")),
+            "priority": str(fm.get("priority", "normal")),
+            "last_reviewed": str(fm.get("last_reviewed", "")),
+        })
+    return managed, unmanaged
+
+
+def days_since(iso: str, today: dt.date) -> int | None:
+    try:
+        return (today - dt.date.fromisoformat(iso)).days
+    except ValueError:
+        return None
+
+
+def sort_managed(managed: list[dict], today: dt.date) -> list[dict]:
+    def key(m):
+        pr = PRIORITY_RANK.get(m["priority"], 1)
+        stale = days_since(m["last_reviewed"], today)
+        # stalest first within a priority band; unparseable dates sort last
+        return (pr, -(stale if stale is not None else -1))
+    return sorted(managed, key=key)
+
+
+def render_text(managed, unmanaged, today) -> str:
+    out = [f"# Incubator index — {today.isoformat()}", ""]
+    out.append(f"Managed: {len(managed)}   Unmanaged: {len(unmanaged)}")
+    out.append("")
+    out.append("## Managed (priority, then stalest first)")
+    if not managed:
+        out.append("_none_")
+    for m in managed:
+        d = days_since(m["last_reviewed"], today)
+        age = f"{d}d ago" if d is not None else "unknown"
+        out.append(f"- [{m['priority']}/{m['status']}] {m['name']} "
+                   f"— reviewed {m['last_reviewed']} ({age}) — {m['path']}")
+    out.append("")
+    out.append("## Unmanaged (by file mtime, stalest first)")
+    if not unmanaged:
+        out.append("_none_")
+    for u in sorted(unmanaged, key=lambda x: x["mtime"]):
+        mt = dt.date.fromtimestamp(u["mtime"]).isoformat()
+        out.append(f"- {u['name']} — touched {mt} — {u['path']} ({u['reason']})")
+    return "\n".join(out) + "\n"
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(description="Index the Incubator/ tree.")
+    ap.add_argument("--root", default="Incubator", help="Incubator dir (default: ./Incubator)")
+    ap.add_argument("--json", action="store_true", help="machine-readable output")
+    ap.add_argument("--write", action="store_true",
+                    help="also (re)generate <root>/INDEX.md")
+    args = ap.parse_args()
+
+    root = Path(args.root)
+    if not root.is_dir():
+        print(f"error: {root} is not a directory", file=sys.stderr)
+        return 1
+
+    today = dt.date.today()
+    managed, unmanaged = collect(root)
+    managed = sort_managed(managed, today)
+
+    if args.json:
+        print(json.dumps({"generated": today.isoformat(),
+                          "managed": managed, "unmanaged": unmanaged}, indent=2))
+    else:
+        print(render_text(managed, unmanaged, today), end="")
+
+    if args.write:
+        banner = "<!-- generated by /incubator list --write — do not edit by hand -->\n\n"
+        (root / "INDEX.md").write_text(
+            banner + render_text(managed, unmanaged, today), encoding="utf-8")
+        print(f"\nwrote {root / 'INDEX.md'}", file=sys.stderr)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

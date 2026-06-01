@@ -25,11 +25,39 @@ import click
 
 PLANS_DIR = Path("docs/plans")
 INCUBATOR_PARENT = Path("Incubator")
-CONFIG_DIR = Path(".claude/.skill-bdplan")
-CONFIG_FILE = CONFIG_DIR / "config.local.json"
-GITIGNORE_FILE = CONFIG_DIR / ".gitignore"
 
-MIN_BD_VERSION = (0, 60)
+# Skill Surface Convention (see skill-authoring/reference/SURFACE_CONVENTION.md):
+# operator config vs runtime state vs the hash-checked installed rule.
+SKILL_NAME = "bdplan"
+RULE_NAME = "PLANS.md"
+CONFIG_FILE = Path(f".{SKILL_NAME}.local.json")          # operator decisions (gitignored)
+STATE_DIR = Path(".state") / SKILL_NAME                  # runtime cache (gitignored)
+STATE_FILE = STATE_DIR / "preflight.json"
+
+
+def _rules_dir() -> Path:
+    # Active project rules surface: prefer an existing surface dir, else default to .claude.
+    if Path(".agents").is_dir():
+        return Path(".agents/rules")
+    if Path(".claude").is_dir():
+        return Path(".claude/rules")
+    return Path(".claude/rules")
+
+
+def _installed_rule_path():
+    # An installed rule may live under either surface; return whichever exists.
+    for d in (Path(".agents/rules"), Path(".claude/rules")):
+        p = d / RULE_NAME
+        if p.exists():
+            return p
+    return None
+
+
+INSTALLED_RULE = _rules_dir() / RULE_NAME   # install target for the active surface
+MANIFEST_FILE = Path(__file__).resolve().parent.parent / "protocols" / "manifest.json"
+MANIFEST_SCHEMA = 1
+
+MIN_BD_VERSION = (1, 0, 5)
 
 # Tools probed by _detect_tools (Epic 1.4). Each is best-effort; missing tools
 # are recorded as "not present" and never fail init.
@@ -565,22 +593,58 @@ def seed_upstream_triage(plan_dir: Path, objective: str,
     return path, reference_paths
 
 
-def _read_config() -> dict:
-    """Read config.local.json, returning empty dict if missing/invalid."""
-    if not CONFIG_FILE.exists():
-        return {}
+def _read_json(path: Path) -> dict:
     try:
-        return json.loads(CONFIG_FILE.read_text())
+        return json.loads(path.read_text())
     except (json.JSONDecodeError, OSError):
         return {}
 
 
-def _write_config(data: dict) -> None:
-    """Write config.local.json and ensure .gitignore covers it."""
-    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-    CONFIG_FILE.write_text(json.dumps(data, indent=2) + "\n")
-    if not GITIGNORE_FILE.exists():
-        GITIGNORE_FILE.write_text("config.local.json\n")
+def _read_config() -> dict:
+    """Operator config (.bdplan.local.json) — operator decisions only (e.g. ignore-skill)."""
+    return _read_json(CONFIG_FILE) if CONFIG_FILE.exists() else {}
+
+
+def _read_state() -> dict:
+    """Runtime state (.state/bdplan/preflight.json) — cache, never operator config."""
+    return _read_json(STATE_FILE) if STATE_FILE.exists() else {}
+
+
+def _write_state(data: dict) -> None:
+    STATE_DIR.mkdir(parents=True, exist_ok=True)
+    STATE_FILE.write_text(json.dumps(data, indent=2) + "\n")
+
+
+def _sha256(path: Path) -> str | None:
+    if not path.exists():
+        return None
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _check_rule() -> dict:
+    """Compare the installed companion rule against protocols/manifest.json.
+
+    Outcomes: ok | update_available | drift | deprecated | missing |
+    manifest_schema_unknown | manifest_missing (Surface Convention § Hash manifest).
+    """
+    manifest = _read_json(MANIFEST_FILE)
+    if not manifest:
+        return {"outcome": "manifest_missing", "rule": RULE_NAME}
+    if manifest.get("schema_version") != MANIFEST_SCHEMA:
+        return {"outcome": "manifest_schema_unknown", "rule": RULE_NAME,
+                "schema_version": manifest.get("schema_version")}
+    entry = manifest.get("files", {}).get(RULE_NAME, {})
+    rule_path = _installed_rule_path()
+    installed = _sha256(rule_path) if rule_path is not None else None
+    if installed is None:
+        return {"outcome": "missing", "rule": RULE_NAME}
+    if entry.get("deprecated"):
+        return {"outcome": "deprecated", "rule": RULE_NAME}
+    if installed == entry.get("sha256"):
+        return {"outcome": "ok", "rule": RULE_NAME, "version": entry.get("version")}
+    if any(installed == p.get("sha256") for p in entry.get("previous_versions", [])):
+        return {"outcome": "update_available", "rule": RULE_NAME, "version": entry.get("version")}
+    return {"outcome": "drift", "rule": RULE_NAME}
 
 
 def _parse_bd_version() -> tuple[int, ...] | None:
@@ -591,70 +655,70 @@ def _parse_bd_version() -> tuple[int, ...] | None:
         )
     except (subprocess.CalledProcessError, FileNotFoundError):
         return None
-    import re
-    match = re.search(r"(\d+)\.(\d+)", output)
+    match = re.search(r"(\d+)\.(\d+)(?:\.(\d+))?", output)
     if not match:
         return None
-    return (int(match.group(1)), int(match.group(2)))
+    parts = [int(g) for g in match.groups() if g is not None]
+    return tuple(parts)
+
+
+_RULE_INSTRUCTIONS = {
+    "missing": f"Run: /{SKILL_NAME} init  (installs {RULE_NAME} to the project rules dir (.claude/rules or .agents/rules))",
+    "drift": f"Installed {RULE_NAME} diverges from the manifest — resolve manually or run /{SKILL_NAME} init --force",
+    "deprecated": f"{RULE_NAME} is deprecated — run /{SKILL_NAME} init --prune",
+    "manifest_schema_unknown": f"Upgrade {SKILL_NAME}: manifest schema_version not understood",
+    "manifest_missing": f"{SKILL_NAME} packaging error: protocols/manifest.json is missing",
+}
 
 
 def _check_prerequisites() -> dict:
-    """Check all system prerequisites. Returns structured result."""
-    config = _read_config()
+    """Preflight per the Surface Convention: deps (cached in state) + installed-rule hash.
 
-    if config.get("ignore-skill"):
-        return {"status": "ignored"}
+    Returns {status, missing, instructions, rule}. ignore-skill is an operator decision
+    (config); prereqs-present is a cache (state). update_available is non-blocking.
+    """
+    if _read_config().get("ignore-skill"):
+        return {"status": "ignored", "missing": [], "instructions": [], "rule": None}
 
-    if config.get("prereqs-present"):
-        return {"status": "ok", "missing": [], "instructions": []}
+    # System deps — checked once, then cached in state.
+    if not _read_state().get("prereqs-present"):
+        missing, instructions = [], []
+        if not shutil.which("git"):
+            missing.append("git")
+            instructions.append("Install git via your system package manager")
+        if not shutil.which("uv"):
+            missing.append("uv")
+            instructions.append("Install uv: https://docs.astral.sh/uv/")
+        bd_version = _parse_bd_version()
+        if bd_version is None:
+            missing.append("bd")
+            instructions.append("Install beads: https://github.com/gastownhall/beads")
+        elif bd_version < MIN_BD_VERSION:
+            v_str = ".".join(str(p) for p in bd_version)
+            min_str = ".".join(str(p) for p in MIN_BD_VERSION)
+            missing.append(f"bd>={min_str}")
+            instructions.append(
+                f"Upgrade beads: bd upgrade (current: {v_str}, required: >= {min_str})"
+            )
+        if missing:
+            return {"status": "system_deps_missing", "missing": missing,
+                    "instructions": instructions, "rule": None}
+        try:
+            subprocess.check_output(["bd", "status", "--json"], stderr=subprocess.DEVNULL)
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            return {"status": "bd_not_initialized", "missing": [],
+                    "instructions": ["Run: bd init"], "rule": None}
+        _write_state({"prereqs-present": True})
 
-    missing = []
-    instructions = []
-
-    if not shutil.which("git"):
-        missing.append("git")
-        instructions.append("Install git via your system package manager")
-
-    if not shutil.which("uv"):
-        missing.append("uv")
-        instructions.append("Install uv: https://docs.astral.sh/uv/")
-
-    bd_version = _parse_bd_version()
-    if bd_version is None:
-        missing.append("bd")
-        instructions.append(
-            "Install beads: https://github.com/steveyegge/beads"
-        )
-    elif bd_version < MIN_BD_VERSION:
-        v_str = f"{bd_version[0]}.{bd_version[1]}"
-        missing.append(f"bd>={MIN_BD_VERSION[0]}.{MIN_BD_VERSION[1]}")
-        instructions.append(
-            f"Upgrade beads: bd upgrade (current: {v_str}, "
-            f"required: >= {MIN_BD_VERSION[0]}.{MIN_BD_VERSION[1]})"
-        )
-
-    if missing:
-        return {
-            "status": "system_deps_missing",
-            "missing": missing,
-            "instructions": instructions,
-        }
-
-    # Check bd init
-    try:
-        subprocess.check_output(
-            ["bd", "status", "--json"], stderr=subprocess.DEVNULL
-        )
-    except (subprocess.CalledProcessError, FileNotFoundError):
-        return {
-            "status": "bd_not_initialized",
-            "missing": [],
-            "instructions": ["Run: bd init"],
-        }
-
-    # All passed — cache result
-    _write_config({"prereqs-present": True})
-    return {"status": "ok", "missing": [], "instructions": []}
+    # Installed companion-rule hash — checked every run (cheap).
+    rule = _check_rule()
+    outcome = rule["outcome"]
+    if outcome in ("ok", "update_available"):
+        return {"status": "ok", "missing": [], "rule": rule,
+                "instructions": ([] if outcome == "ok"
+                                  else [f"A newer {RULE_NAME} is available — run /{SKILL_NAME} init --upgrade"])}
+    return {"status": f"rule_{outcome}" if outcome in ("missing", "drift", "deprecated") else outcome,
+            "missing": [], "instructions": [_RULE_INSTRUCTIONS.get(outcome, "")], "rule": rule}
 
 
 @click.group()
@@ -679,25 +743,16 @@ def check(as_json: bool):
         click.echo("bdplan is ignored in this project.")
         sys.exit(0)
 
-    if result["status"] in ("system_deps_missing", "bd_not_initialized"):
+    if result["status"] != "ok":
         for msg in result["instructions"]:
             click.echo(f"ERROR: {msg}", err=True)
         sys.exit(1)
 
-    # status == "ok" — run additional project-level checks
-    errors = False
-    if not Path(".claude/rules/PLANS.md").exists():
-        click.echo(
-            "ERROR: .claude/rules/PLANS.md not found. "
-            "The planning protocol file is required.",
-            err=True,
-        )
-        errors = True
-
+    # status == "ok" — rule hash already verified in _check_prerequisites.
     PLANS_DIR.mkdir(parents=True, exist_ok=True)
-
-    if errors:
-        sys.exit(1)
+    if result.get("instructions"):
+        for msg in result["instructions"]:
+            click.echo(f"NOTE: {msg}", err=True)
     click.echo("All prerequisites satisfied.")
 
 
@@ -920,6 +975,15 @@ _CONTEXT_REQUIRED_SECTIONS = (
     "Runtime assumptions",
 )
 
+# Seeded instructional prose per section (from seed_context_md). A section whose body
+# still contains its marker is unedited template text and fails the portability audit.
+# Tool inventory / Paths are auto-filled with real data at seed time, so they have no marker.
+_CONTEXT_PLACEHOLDERS = {
+    "Project environment": "Describe the project this plan belongs to",
+    "Operator identity": "fill in role, contact, and authority scope",
+    "Runtime assumptions": "List the assumptions this plan makes about",
+}
+
 _README_REQUIRED_SECTIONS = ("File map", "Reading order")
 
 
@@ -1067,9 +1131,11 @@ def _audit_plan(plan_dir: Path) -> dict:
                     f"context.md §{section}", "fail",
                     "section is empty",
                 ))
-            elif "_Snapshot taken at plan-authoring time" in stripped and section == "Project environment":
-                # Template preamble doesn't count as real content.
-                pass
+            elif (marker := _CONTEXT_PLACEHOLDERS.get(section)) and marker in stripped:
+                findings.append(_audit_finding(
+                    f"context.md §{section}", "fail",
+                    "contains unedited template prose; fill in real values",
+                ))
 
     # 3. Motivation: plan.md §Motivation or motivation.md, non-empty and not placeholder
     motivation_ok = False

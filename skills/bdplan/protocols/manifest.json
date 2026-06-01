@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "files": {
+    "PLANS.md": {
+      "sha256": "065ea53740f092f0841fcb16b6264e60d6cda375519525436ca3ee6a43705869",
+      "version": "1.0.0",
+      "deprecated": false,
+      "previous_versions": []
+    }
+  }
+}

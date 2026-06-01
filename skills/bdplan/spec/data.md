@@ -28,19 +28,23 @@ REQ-DATA-013: The Upstream Issues table has columns: Issue, Title, Disposition, 
 Rationale: The reconciler reads this table to determine what action to take on each upstream issue after execution.
 Verification: SKILL.md Phase 3 plan.md template; reconciler.md Execute step 1.
 
-## Configuration
+## Configuration & State (Skill Surface Convention)
 
-REQ-DATA-020: Project-level config is stored at `.claude/.skill-bdplan/config.local.json`.
-Rationale: Scoped under `.claude/` to avoid polluting project root; `config.local.json` is gitignored to keep per-machine state out of the repo.
-Verification: plan_manager.py `CONFIG_FILE` constant; SKILL.md Pre-flight section.
+REQ-DATA-020: Operator config lives at `.bdplan.local.json` (repo root, gitignored); runtime state lives at `.state/bdplan/preflight.json`. Config and state are separate buckets per the Surface Convention (skill-authoring).
+Rationale: Config = operator decisions a fresh clone would need; state = caches/derived values tied to one checkout. Conflating them commits machine-specific state or loses operator intent.
+Verification: plan_manager.py `CONFIG_FILE` / `STATE_FILE` constants; SKILL.md Pre-flight section.
 
-REQ-DATA-021: `config.local.json` supports two keys: `prereqs-present` (boolean) and `ignore-skill` (boolean).
-Rationale: Minimal config surface — prereqs caching avoids re-running checks every invocation; ignore provides clean opt-out.
-Verification: plan_manager.py `_check_prerequisites()` and `_read_config()`; SKILL.md Pre-flight.
+REQ-DATA-021: `ignore-skill` (operator opt-out) is the only config key; `prereqs-present` (deps cache) is state, not config.
+Rationale: Minimal config surface; the only operator decision is whether to opt out. Caching deps avoids re-running checks but is recomputable, so it is state.
+Verification: plan_manager.py `_read_config()` (ignore-skill) vs `_read_state()`/`_write_state()` (prereqs-present); SKILL.md Pre-flight.
 
-REQ-DATA-022: `config.local.json` is in `.claude/.skill-bdplan/.gitignore`.
-Rationale: Machine-specific prereq state must not be committed.
-Verification: plan_manager.py `_write_config()`; SKILL.md init flow line 62.
+REQ-DATA-022: `/bdplan init` adds anchored entries `/.bdplan.local.json` and `/.state/` to `.gitignore` (no globs).
+Rationale: Machine-specific config and all runtime state must not be committed; enumeration keeps `.gitignore` auditable.
+Verification: SKILL.md `/bdplan init` gitignore-stewardship step.
+
+REQ-DATA-023: The companion rule `protocols/PLANS.md` is installed to `.agents/rules/PLANS.md` and hash-checked against `protocols/manifest.json` (schema_version 1) at preflight.
+Rationale: A manifest hash detects drift, stale, or deprecated installed rules; `.agents/rules/` is the project's auto-loaded rules location.
+Verification: plan_manager.py `_check_rule()` + `MANIFEST_FILE`; `protocols/manifest.json`; SKILL.md `/bdplan init` install step.
 
 ## Upstream Tracking
 

@@ -1,0 +1,72 @@
+formula = "bdresearch"
+description = "Multi-phase research pipeline with source credibility scoring"
+version = 1
+type = "workflow"
+phase = "liquid"
+
+[vars.topic]
+description = "Research topic"
+required = true
+
+[vars.mode]
+description = "Execution depth"
+enum = ["quick", "standard", "deep", "ultradeep"]
+default = "standard"
+
+[vars.research_dir]
+description = "Research output directory (e.g., docs/research/002-topic-slug or Incubator/<slug>/research/002-topic-slug)"
+required = true
+
+[[steps]]
+id = "gate"
+title = "Begin research: {{topic}}"
+type = "gate"
+description = "Human gate. Resolve to start research execution."
+[steps.gate]
+type = "human"
+approvers = ["operator"]
+
+[[steps]]
+id = "tooling"
+title = "Build tooling: {{topic}}"
+type = "task"
+needs = ["gate"]
+description = "Create/validate data collection scripts needed for this research."
+
+# NOTE: Retrieve steps (one per source cluster) are injected dynamically
+# after pour, between tooling and triangulate. See SKILL.md Phase 3.
+
+[[steps]]
+id = "triangulate"
+title = "Triangulate: {{topic}}"
+type = "task"
+needs = ["tooling"]
+description = "Cross-reference sources across clusters. Score credibility. Identify contradictions and consensus."
+
+[[steps]]
+id = "synthesize"
+title = "Synthesize: {{topic}}"
+type = "task"
+needs = ["triangulate"]
+description = "Build narrative from verified sources. Every claim must cite a specific source. Produce draft Summary.md."
+
+[[steps]]
+id = "critique"
+title = "Critique: {{topic}}"
+type = "task"
+needs = ["synthesize"]
+description = "Red-team review. Identify gaps, unsupported claims, bias. NO access to plan.yaml (fresh eyes)."
+
+[[steps]]
+id = "refine"
+title = "Refine: {{topic}}"
+type = "task"
+needs = ["critique"]
+description = "Address critique findings. May spawn new retrieve beads via discovered-from if gaps found."
+
+[[steps]]
+id = "package"
+title = "Package: {{topic}}"
+type = "task"
+needs = ["refine"]
+description = "Finalize Summary.md, update _index.md, hoist reusable scripts, close epic, and report a git handoff (commit/push only on explicit authorization)."

@@ -16,11 +16,11 @@ Verification: SKILL.md OVERRIDE line.
 
 ## Pre-flight
 
-REQ-CLI-004: Every invocation except `init` reads `.claude/.skill-bdplan/config.local.json` and stops if it does not exist.
+REQ-CLI-004: Every invocation except `init` runs `plan_manager.py check` and stops (directing to `init`) on any non-`ok`/`ignored` status.
 Rationale: Running the skill without prerequisites produces confusing failures; init must run first.
 Verification: SKILL.md Pre-flight section.
 
-REQ-CLI-005: If `config.local.json` contains `"ignore-skill": true`, the skill exits silently and falls back to native plan mode.
+REQ-CLI-005: If `.bdplan.local.json` contains `"ignore-skill": true`, the skill exits silently and falls back to native plan mode.
 Rationale: Projects that can't satisfy prerequisites need a clean opt-out without repeated error messages.
 Verification: SKILL.md Pre-flight bullet 2; `_check_prerequisites()` in plan_manager.py returns `{"status":"ignored"}`.
 

@@ -71,8 +71,12 @@ uv run ${SKILL_DIR}/scripts/plan_manager.py check --json-output
 
 - **`ignored`** (operator set `"ignore-skill": true` in `.bdplan.local.json`): exit
   silently, fall back to native plan mode.
-- **`ok`**: proceed to the requested command. (`instructions` may carry a non-blocking
-  `update available` note for `PLANS.md`.)
+- **`ok`**: proceed to the requested command. On `ok`, preflight also ensures the
+  idempotent project scaffold (the `docs/plans` dir + the `/.bdplan.local.json` and
+  `/.state/` gitignore anchors); anything it created is listed in `scaffold_added`. The
+  ensure is additive-only and runs once per scaffold version (gated by `scaffold-ensured`
+  state) — it will not re-add an anchor an operator later removes. (`instructions` may
+  carry a non-blocking `update available` note for `PLANS.md`.)
 - **`system_deps_missing` / `bd_not_initialized`**: tell the user to run `/bdplan init` to
   set up the project. Stop.
 - **`rule_missing` / `rule_drift` / `rule_deprecated` / `manifest_*`**: follow the
@@ -81,7 +85,7 @@ uv run ${SKILL_DIR}/scripts/plan_manager.py check --json-output
   not `init`. Stop.
 
 Config vs state: `ignore-skill` is an operator decision in `.bdplan.local.json` (repo
-root, gitignored). The `prereqs-present` cache is runtime state in
+root, gitignored). The `prereqs-present` and `scaffold-ensured` caches are runtime state in
 `.state/bdplan/preflight.json`. The companion rule is installed by the repo installer
 (`install.sh`) to the scope+surface rules dir (user-scope `~/.<surface>/rules/PLANS.md`,
 project-scope `<git-root>/.<surface>/rules/PLANS.md`; `.claude` or `.agents`); preflight
@@ -96,13 +100,14 @@ Initialize bdplan for the current project. Spawn a sub-agent (`Agent` with `suba
 Run bdplan init for Claude Code:
 
 1. Run `uv run ${SKILL_DIR}/scripts/plan_manager.py check --json-output` and parse the JSON.
-2. If status is "system_deps_missing" or "bd_not_initialized", return the JSON as-is. Do nothing else.
-3. mkdir -p docs/plans  (per-incubator plan roots like `Incubator/<slug>/plans/` are created lazily).
-4. Gitignore stewardship: ensure ./.gitignore contains the anchored lines `/.bdplan.local.json`
-   and `/.state/` (add if absent; no globs). Record this.
+   On status "ok", preflight has already ensured the idempotent scaffold (the docs/plans dir
+   plus the `/.bdplan.local.json` and `/.state/` gitignore anchors); `scaffold_added` lists
+   what it created. Per-incubator plan roots (`Incubator/<slug>/plans/`) are created lazily.
    The companion rule `PLANS.md` is installed by the repo installer (`install.sh`), not here —
    never write to AGENTS/ and never edit CLAUDE.md.
-5. Return JSON: {"status":"ready","actions":["<list of actions taken, empty if none>"],"rule":<the check's `rule` object>}
+2. If status is "system_deps_missing" or "bd_not_initialized", return the JSON as-is. Do nothing
+   else. (The scaffold is intentionally NOT ensured until the project is ready.)
+3. Return JSON: {"status":"ready","actions":<the check's `scaffold_added` array, or []>,"rule":<the check's `rule` object>}
 ```
 
 Handle the sub-agent result:

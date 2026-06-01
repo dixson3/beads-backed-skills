@@ -33,9 +33,9 @@ REQ-CLI-006: `research_manager.py` exposes exactly 2 subcommands: `check`, `json
 Rationale: The manager is deliberately narrow — preflight (which locates and hash-checks the installed rule via `_rule_candidates()`/`_check_rule()`) and a defensive `json-get`. The companion rule is installed by the repo installer (`install.sh`), not by `init`, so no `rules-dir` subcommand is needed. Research-directory and `_index.md` state stays in `index_manager.py`; citation/report tooling in `link_normalizer.py` and `credibility_scorer.py`.
 Verification: `grep -c '@cli.command' scripts/research_manager.py` == 2.
 
-REQ-CLI-007: `research_manager.py check --json-output` emits a JSON object with keys `status` (`ignored|ok|system_deps_missing|bd_not_initialized`), `missing`, `instructions`, `warnings`.
-Rationale: SKILL.md `init` parses this to decide ready/halt and to relay advisory warnings.
-Verification: return shape of `_check_prerequisites()`.
+REQ-CLI-007: `research_manager.py check --json-output` emits a JSON object with keys `status` (`ignored|ok|system_deps_missing|bd_not_initialized|rule_missing|rule_drift|rule_deprecated|manifest_schema_unknown|manifest_missing`), `missing`, `instructions`, `warnings`, and `rule` (the installed-rule outcome object, null when deps/bd are missing). On the `ok` path it additionally carries `scaffold_added` (list of dirs/gitignore anchors preflight created this run, usually empty).
+Rationale: SKILL.md `init` parses this to decide ready/halt, relay advisory warnings, surface rule drift, and report scaffold additions.
+Verification: return shape of `_check_prerequisites()` (the `ok` branch includes `rule` + `scaffold_added`; non-ok rule branches set the `rule_*`/`manifest_*` status).
 
 REQ-CLI-008: `research_manager.py json-get` parses defensively — it extracts the first balanced JSON value (tolerating a warning prefix or a concatenated/array document such as `bd show --json`) and supports numeric keys as list indices.
 Rationale: `bd` output is not always a single clean JSON document; naive `json.load` breaks on arrays/prefixes.

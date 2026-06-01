@@ -36,7 +36,7 @@ Verification: SKILL.md Pre-flight runs `check` and directs to `init` on non-ok s
 
 REQ-PREREQ-021: `plan_manager.py check` writes `{"prereqs-present": true}` to `.state/bdplan/preflight.json` on success, caching the result for subsequent invocations.
 Rationale: Re-running prereq checks on every invocation wastes time; caching makes pre-flight a single file read.
-Verification: `_check_prerequisites()` in plan_manager.py calls `_write_state()` on success.
+Verification: `_check_prerequisites()` in plan_manager.py calls `_update_state(prereqs-present=True)` on success (a merge-write that preserves sibling state keys such as `scaffold-ensured`).
 
 REQ-PREREQ-022: If prerequisites are missing, the operator is offered two choices: fix prerequisites or ignore bdplan in this project.
 Rationale: Some projects can't satisfy prerequisites (no beads, no uv); ignoring cleanly falls back to native plan mode.

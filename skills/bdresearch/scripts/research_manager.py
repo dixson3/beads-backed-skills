@@ -29,6 +29,13 @@ RULE_NAME = "RESEARCH.md"
 CONFIG_FILE = Path(f".{SKILL_NAME}.local.json")          # operator decisions (gitignored)
 STATE_DIR = Path(".state") / SKILL_NAME                  # runtime cache (gitignored)
 STATE_FILE = STATE_DIR / "preflight.json"
+
+# Idempotent project scaffold (Surface Convention §6/§7). Bump SCAFFOLD_VERSION
+# when the anchor set changes — preflight re-ensures once per version.
+SCAFFOLD_VERSION = 1
+RESEARCH_DIR = Path("docs/research")
+GITIGNORE_FILE = Path(".gitignore")
+GITIGNORE_ANCHORS = (f"/{CONFIG_FILE}", "/.state/")      # enumerated, anchored, no globs
 def _skill_surface() -> str | None:
     # Which surface this skill is installed under, from the script's own path.
     # Honor the invocation path first (a .claude/skills symlink keeps .claude),
@@ -135,6 +142,45 @@ def _read_state() -> dict:
 def _write_state(data: dict) -> None:
     STATE_DIR.mkdir(parents=True, exist_ok=True)
     STATE_FILE.write_text(json.dumps(data, indent=2) + "\n")
+
+
+def _update_state(**kv) -> None:
+    """Merge keys into runtime state (never clobber sibling keys)."""
+    state = _read_state()
+    state.update(kv)
+    _write_state(state)
+
+
+def _ensure_scaffold() -> list[str]:
+    """Idempotent, additive project scaffold (Surface Convention §6/§7).
+
+    Dirs are ensured every call (infrastructure, safe to recreate). The gitignore
+    anchors are ensured once per SCAFFOLD_VERSION (gated by state) — additive only,
+    never removing or reordering existing lines, so it will not fight an operator
+    who later drops an anchor. Returns a human-readable list of what it created.
+    """
+    added: list[str] = []
+
+    # Required dirs — ensured every call.
+    if not RESEARCH_DIR.exists():
+        RESEARCH_DIR.mkdir(parents=True, exist_ok=True)
+        added.append(f"created {RESEARCH_DIR}/")
+
+    # Gitignore anchors — ensured once per scaffold version.
+    if _read_state().get("scaffold-ensured") != SCAFFOLD_VERSION:
+        lines = GITIGNORE_FILE.read_text().splitlines() if GITIGNORE_FILE.exists() else []
+        present = {ln.strip() for ln in lines}
+        missing = [a for a in GITIGNORE_ANCHORS if a not in present]
+        if missing:
+            if lines and lines[-1].strip():
+                lines.append("")
+            lines.append(f"# Skill runtime state + local config ({SKILL_NAME}; Surface Convention §6)")
+            lines.extend(missing)
+            GITIGNORE_FILE.write_text("\n".join(lines) + "\n")
+            added += [f"gitignore {m}" for m in missing]
+        _update_state(**{"scaffold-ensured": SCAFFOLD_VERSION})
+
+    return added
 
 
 def _sha256(path: Path) -> str | None:
@@ -253,13 +299,16 @@ def _check_prerequisites() -> dict:
         except (subprocess.CalledProcessError, FileNotFoundError):
             return {"status": "bd_not_initialized", "missing": [],
                     "instructions": ["Run: bd init"], "warnings": warnings, "rule": None}
-        _write_state({"prereqs-present": True})
+        _update_state(**{"prereqs-present": True})
 
     # Installed companion-rule hash — checked every run (cheap).
     rule = _check_rule()
     outcome = rule["outcome"]
     if outcome in ("ok", "update_available"):
+        # Ensure the idempotent scaffold only when the project is otherwise ready.
+        scaffold_added = _ensure_scaffold()
         return {"status": "ok", "missing": [], "warnings": warnings, "rule": rule,
+                "scaffold_added": scaffold_added,
                 "instructions": ([] if outcome == "ok"
                                  else [f"A newer {RULE_NAME} is available — re-run the repo installer (install.sh --force) to update"])}
     return {"status": f"rule_{outcome}" if outcome in ("missing", "drift", "deprecated") else outcome,
@@ -355,9 +404,10 @@ def check(as_json: bool):
 
     for w in result.get("warnings", []):
         click.echo(f"WARN: {w}", err=True)
+    for entry in result.get("scaffold_added", []):
+        click.echo(f"NOTE: scaffold — {entry}", err=True)
     for msg in result.get("instructions", []):  # non-blocking notes (e.g. rule update available)
         click.echo(f"NOTE: {msg}", err=True)
-    Path("docs/research").mkdir(parents=True, exist_ok=True)
     click.echo("All prerequisites satisfied.")
 
 

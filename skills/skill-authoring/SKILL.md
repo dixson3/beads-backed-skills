@@ -46,8 +46,8 @@ Adopt the whole contract or none of it. Full spec + worked example: [[SURFACE_CO
 3. **Config files.** `.<skill>.json` (committed) and `.<skill>.local.json` (gitignored), both at repo root, both optional. Config = operator decisions. State ≠ config.
 4. **Local state.** `.state/<skill>/`. Skill scripts write runtime cache here only. Never under the skill source dir. Never under `.claude/`.
 5. **Hook installation.** Skills that register Claude Code hooks declare them in `hooks/manifest.json` and merge into `.claude/settings.json` via `<skill> init`. Idempotent. `<skill> uninstall` removes them.
-6. **Gitignore stewardship.** `<skill> init` ensures `.gitignore` contains enumerated anchored entries `/.<skill>.local.json` and `/.state/`. No globs.
-7. **Preflight contract.** `<skill> preflight` checks deps, installed-rule hash, config readability, hook installation. Returns structured JSON. Non-OK blocks verb execution until resolved (rule problems → re-run `install.sh`; setup problems → `<skill> init`).
+6. **Gitignore stewardship.** The `.gitignore` carries enumerated anchored entries `/.<skill>.local.json` and `/.state/` (no globs). **Preflight ensures these** (§7), not just init.
+7. **Preflight contract.** `<skill> preflight` both **checks** (deps, installed-rule hash, config readability, hooks) and **ensures** the idempotent scaffold (required dirs + §6 gitignore anchors — additive-only, reported, gated by a `scaffold-ensured` state version so it runs once and won't fight an operator who removes an anchor). Returns structured JSON; non-OK checks block verb execution (rule problems → re-run `install.sh`; deps/consent problems → `<skill> init`). init shrinks to consent-only setup.
 
 ### Manifest helper
 
@@ -142,7 +142,7 @@ def _state_dir(project_root: Path, skill_name: str) -> Path:
     return project_root / ".state" / skill_name
 ```
 
-`<skill> init` creates `.state/<skill>/` and adds `/.state/` to `.gitignore`.
+Preflight ensures `/.state/` is in `.gitignore` (§ Skill Surface Convention point 7); `.state/<skill>/` is created on first state write.
 
 ### When PEP 723 isn't pleasant
 

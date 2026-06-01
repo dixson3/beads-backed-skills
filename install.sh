@@ -141,6 +141,6 @@ if [[ "$HAVE_RULES" -eq 1 ]]; then
   echo "Companion rules -> ${RULES_DEST}"
   echo ""
   echo "Per-project setup (run once from the project root, for skills that ship rules):"
-  echo "  /<skill> init   # checks prerequisites, adds .gitignore entries, writes per-project config"
+  echo "  /<skill> init   # checks prerequisites + consent-only setup (preflight auto-ensures gitignore anchors + state dirs)"
   echo "  (init no longer installs the rule — install.sh did that above)"
 fi

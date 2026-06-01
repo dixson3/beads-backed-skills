@@ -34,6 +34,12 @@ CONFIG_FILE = Path(f".{SKILL_NAME}.local.json")          # operator decisions (g
 STATE_DIR = Path(".state") / SKILL_NAME                  # runtime cache (gitignored)
 STATE_FILE = STATE_DIR / "preflight.json"
 
+# Idempotent project scaffold (Surface Convention §6/§7). Bump SCAFFOLD_VERSION
+# when the anchor set changes — preflight re-ensures once per version.
+SCAFFOLD_VERSION = 1
+GITIGNORE_FILE = Path(".gitignore")
+GITIGNORE_ANCHORS = (f"/{CONFIG_FILE}", "/.state/")      # enumerated, anchored, no globs
+
 
 def _skill_surface() -> str | None:
     # Which surface this skill is installed under, from the script's own path.
@@ -676,6 +682,45 @@ def _write_state(data: dict) -> None:
     STATE_FILE.write_text(json.dumps(data, indent=2) + "\n")
 
 
+def _update_state(**kv) -> None:
+    """Merge keys into runtime state (never clobber sibling keys)."""
+    state = _read_state()
+    state.update(kv)
+    _write_state(state)
+
+
+def _ensure_scaffold() -> list[str]:
+    """Idempotent, additive project scaffold (Surface Convention §6/§7).
+
+    Dirs are ensured every call (infrastructure, safe to recreate). The gitignore
+    anchors are ensured once per SCAFFOLD_VERSION (gated by state) — additive only,
+    never removing or reordering existing lines, so it will not fight an operator
+    who later drops an anchor. Returns a human-readable list of what it created.
+    """
+    added: list[str] = []
+
+    # Required dirs — ensured every call.
+    if not PLANS_DIR.exists():
+        PLANS_DIR.mkdir(parents=True, exist_ok=True)
+        added.append(f"created {PLANS_DIR}/")
+
+    # Gitignore anchors — ensured once per scaffold version.
+    if _read_state().get("scaffold-ensured") != SCAFFOLD_VERSION:
+        lines = GITIGNORE_FILE.read_text().splitlines() if GITIGNORE_FILE.exists() else []
+        present = {ln.strip() for ln in lines}
+        missing = [a for a in GITIGNORE_ANCHORS if a not in present]
+        if missing:
+            if lines and lines[-1].strip():
+                lines.append("")
+            lines.append(f"# Skill runtime state + local config ({SKILL_NAME}; Surface Convention §6)")
+            lines.extend(missing)
+            GITIGNORE_FILE.write_text("\n".join(lines) + "\n")
+            added += [f"gitignore {m}" for m in missing]
+        _update_state(**{"scaffold-ensured": SCAFFOLD_VERSION})
+
+    return added
+
+
 def _sha256(path: Path) -> str | None:
     if not path.exists():
         return None
@@ -789,13 +834,16 @@ def _check_prerequisites() -> dict:
         except (subprocess.CalledProcessError, FileNotFoundError):
             return {"status": "bd_not_initialized", "missing": [],
                     "instructions": ["Run: bd init"], "rule": None}
-        _write_state({"prereqs-present": True})
+        _update_state(**{"prereqs-present": True})
 
     # Installed companion-rule hash — checked every run (cheap).
     rule = _check_rule()
     outcome = rule["outcome"]
     if outcome in ("ok", "update_available"):
+        # Ensure the idempotent scaffold only when the project is otherwise ready.
+        scaffold_added = _ensure_scaffold()
         return {"status": "ok", "missing": [], "rule": rule,
+                "scaffold_added": scaffold_added,
                 "instructions": ([] if outcome == "ok"
                                   else [f"A newer {RULE_NAME} is available — re-run the repo installer (install.sh --force) to update"])}
     return {"status": f"rule_{outcome}" if outcome in ("missing", "drift", "deprecated") else outcome,
@@ -829,8 +877,9 @@ def check(as_json: bool):
             click.echo(f"ERROR: {msg}", err=True)
         sys.exit(1)
 
-    # status == "ok" — rule hash already verified in _check_prerequisites.
-    PLANS_DIR.mkdir(parents=True, exist_ok=True)
+    # status == "ok" — rule hash verified and scaffold ensured in _check_prerequisites.
+    for entry in result.get("scaffold_added", []):
+        click.echo(f"NOTE: scaffold — {entry}", err=True)
     if result.get("instructions"):
         for msg in result["instructions"]:
             click.echo(f"NOTE: {msg}", err=True)

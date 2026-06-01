@@ -34,13 +34,13 @@ REQ-DATA-020: Operator config lives at `.bdplan.local.json` (repo root, gitignor
 Rationale: Config = operator decisions a fresh clone would need; state = caches/derived values tied to one checkout. Conflating them commits machine-specific state or loses operator intent.
 Verification: plan_manager.py `CONFIG_FILE` / `STATE_FILE` constants; SKILL.md Pre-flight section.
 
-REQ-DATA-021: `ignore-skill` (operator opt-out) is the only config key; `prereqs-present` (deps cache) is state, not config.
-Rationale: Minimal config surface; the only operator decision is whether to opt out. Caching deps avoids re-running checks but is recomputable, so it is state.
-Verification: plan_manager.py `_read_config()` (ignore-skill) vs `_read_state()`/`_write_state()` (prereqs-present); SKILL.md Pre-flight.
+REQ-DATA-021: `ignore-skill` (operator opt-out) is the only config key; `prereqs-present` (deps cache) and `scaffold-ensured` (scaffold-version marker) are state, not config.
+Rationale: Minimal config surface; the only operator decision is whether to opt out. Both state keys are recomputable caches, so they are state.
+Verification: plan_manager.py `_read_config()` (ignore-skill) vs `_read_state()`/`_update_state()` (prereqs-present, scaffold-ensured); SKILL.md Pre-flight.
 
-REQ-DATA-022: `/bdplan init` adds anchored entries `/.bdplan.local.json` and `/.state/` to `.gitignore` (no globs).
-Rationale: Machine-specific config and all runtime state must not be committed; enumeration keeps `.gitignore` auditable.
-Verification: SKILL.md `/bdplan init` gitignore-stewardship step.
+REQ-DATA-022: The anchored entries `/.bdplan.local.json` and `/.state/` are present in `.gitignore` (no globs), ensured by preflight (`_ensure_scaffold`), not by `/bdplan init`.
+Rationale: Machine-specific config and all runtime state must not be committed; enumeration keeps `.gitignore` auditable. Folding the ensure into preflight makes it self-healing rather than dependent on init having been run. The write is additive-only and gated by `scaffold-ensured` so it runs once per scaffold version (Surface Convention §7).
+Verification: plan_manager.py `_ensure_scaffold()` (GITIGNORE_ANCHORS, additive append, scaffold-ensured gate), invoked from `_check_prerequisites()` on the `ok` path; SKILL.md Pre-flight `ok` bullet.
 
 REQ-DATA-023: The companion rule `protocols/PLANS.md` is installed by the repo installer (`install.sh`) — not by `/bdplan init` — to a rules dir anchored by install scope and surface: user-scope → `~/.<surface>/rules/PLANS.md`, project-scope → `<git-root>/.<surface>/rules/PLANS.md` (`.claude` or `.agents`). Preflight resolves the installed rule across locations in precedence order — the user/global `~/.<surface>/rules` copy before the project copy — and hash-checks it against `protocols/manifest.json` (schema_version 1). A correct user-scope copy satisfies every project; `install.sh --force` overwrites an existing rule.
 Rationale: A manifest hash detects drift/stale/deprecated installed rules; matching the surface keeps a `.claude` install from polluting an unrelated `.agents/` tree (and vice versa); anchoring by scope puts a user-scope rule at `~/.<surface>/rules` (shared by every project) and a project-scope rule at the git root. Installing at install time (not init) means the rule is present the moment the skill is. Both `.claude/rules/` and `.agents/rules/` are auto-loaded.

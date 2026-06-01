@@ -18,7 +18,7 @@ Also required: an initialized beads database (`bd init`).
 
 Search providers are **advisory, not blocking**. Exa MCP is preferred; absent it, `TAVILY_API_KEY` / `PERPLEXITY_API_KEY` are used if set. Missing providers surface as warnings and never block init.
 
-The `RESEARCH.md` companion rule is installed by the repo installer (`install.sh`) alongside the skill. `/bdresearch init` handles per-project setup only (prerequisite check, `.gitignore` entries, config); it does not install the rule.
+The `RESEARCH.md` companion rule is installed by the repo installer (`install.sh`) alongside the skill. `/bdresearch init` handles consent-only per-project setup (prerequisite check, the prereq-missing opt-out); it does not install the rule. The idempotent scaffold (the `docs/research` dir + the `/.bdresearch.local.json` and `/.state/` gitignore anchors) is ensured automatically by preflight on every healthy `check`.
 
 ## Install
 
@@ -35,7 +35,7 @@ Or per-skill: copy the `skills/bdresearch` directory to `~/.claude/skills/bdrese
 
 ## Usage
 
-- `/bdresearch init` — per-project setup (prereq check, `.gitignore`, config; the rule is installed by `install.sh`)
+- `/bdresearch init` — consent-only per-project setup (prereq check, opt-out; the rule is installed by `install.sh`, the scaffold is ensured by preflight)
 - `/bdresearch <topic>` — start a new research project
 - `/bdresearch coordinate [<idx-or-epic>]` — resolve a gate and run the coordinator loop
 - `/bdresearch status [<idx>]` — check research status

@@ -78,8 +78,12 @@ uv run ${SKILL_DIR}/scripts/research_manager.py check --json-output
 
 - **`ignored`** (operator set `"ignore-skill": true` in `.bdresearch.local.json`): exit
   silently.
-- **`ok`**: proceed. (`warnings` carry advisory provider notes; `instructions` may carry
-  a non-blocking `update available` note for `RESEARCH.md`.)
+- **`ok`**: proceed. On `ok`, preflight also ensures the idempotent project scaffold (the
+  `docs/research` dir + the `/.bdresearch.local.json` and `/.state/` gitignore anchors);
+  anything it created is listed in `scaffold_added`. The ensure is additive-only and runs
+  once per scaffold version (gated by `scaffold-ensured` state) — it will not re-add an
+  anchor an operator later removes. (`warnings` carry advisory provider notes; `instructions`
+  may carry a non-blocking `update available` note for `RESEARCH.md`.)
 - **`system_deps_missing` / `bd_not_initialized`**: tell the user to run `/bdresearch init`
   to set up the project. Stop.
 - **`rule_missing` / `rule_drift` / `rule_deprecated` / `manifest_*`**: follow the
@@ -88,7 +92,7 @@ uv run ${SKILL_DIR}/scripts/research_manager.py check --json-output
   not `init`. Stop.
 
 Config vs state: `ignore-skill` is an operator decision in `.bdresearch.local.json` (repo
-root, gitignored). `prereqs-present` is runtime state in `.state/bdresearch/preflight.json`.
+root, gitignored). `prereqs-present` and `scaffold-ensured` are runtime state in `.state/bdresearch/preflight.json`.
 The companion rule is installed by the repo installer (`install.sh`) to the scope+surface
 rules dir (user-scope `~/.<surface>/rules/RESEARCH.md`, project-scope
 `<git-root>/.<surface>/rules/RESEARCH.md`; `.claude` or `.agents`); preflight resolves it in
@@ -103,16 +107,15 @@ Initialize bdresearch for the current project. Spawn a sub-agent (`Agent` with
 Run bdresearch init for Claude Code:
 
 1. Run `uv run ${SKILL_DIR}/scripts/research_manager.py check --json-output` and parse
-   the JSON. Record any `warnings` to relay.
+   the JSON. Record any `warnings` to relay. On status "ok", preflight has already ensured
+   the idempotent scaffold (the docs/research dir plus the `/.bdresearch.local.json` and
+   `/.state/` gitignore anchors); `scaffold_added` lists what it created. Per-incubator
+   roots (`Incubator/<slug>/research/`) are created lazily. The companion rule `RESEARCH.md`
+   is installed by the repo installer (`install.sh`), not here — never write to AGENTS/ and
+   never edit CLAUDE.md.
 2. If status is "system_deps_missing" or "bd_not_initialized", return the JSON as-is.
-   Do nothing else.
-3. mkdir -p docs/research  (per-incubator roots like Incubator/<slug>/research/ are
-   created lazily when an incubator-scoped run is first started).
-4. Gitignore stewardship: ensure ./.gitignore contains the anchored lines
-   `/.bdresearch.local.json` and `/.state/` (add if absent; no globs). Record this.
-   The companion rule `RESEARCH.md` is installed by the repo installer (`install.sh`), not
-   here — never write to AGENTS/ and never edit CLAUDE.md.
-5. Return JSON: {"status":"ready","actions":[...],"warnings":[...],"rule":<the check's `rule` object>}.
+   Do nothing else. (The scaffold is intentionally NOT ensured until the project is ready.)
+3. Return JSON: {"status":"ready","actions":<the check's `scaffold_added` array, or []>,"warnings":[...],"rule":<the check's `rule` object>}.
 ```
 
 Handle the sub-agent result:

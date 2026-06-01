@@ -30,7 +30,7 @@ The rule is installed by **the repo installer (`install.sh`), not by `<skill> in
 
 A user-scope rule at `~/.<surface>/rules/<NAME>.md` is **global** — in context for every project. Preflight resolves the installed rule across candidate locations in precedence order, the user/global copy before the project copy; a correct global copy satisfies any project, so a project install is not required when the global copy already matches the manifest hash.
 
-`<skill> init` does **not** install the rule. It handles per-project setup only (config, `.gitignore` stewardship, prerequisite gating) and surfaces the preflight rule status, pointing the operator at `install.sh` if the rule is missing or drifted.
+`<skill> init` does **not** install the rule. It handles consent-only per-project setup (config seeding, the prereq-missing → `ignore-skill` decision) and surfaces the preflight rule status, pointing the operator at `install.sh` if the rule is missing or drifted. The idempotent scaffold (dirs + `.gitignore` anchors) is ensured by preflight, not init (§7).
 
 **Never** write to `AGENTS/`. **Never** edit `CLAUDE.md` to add an `@`-include. Project-level instruction trees own those files; neither the installer nor init may pollute them. If the operator wants the rule visible from `CLAUDE.md`, they wire the include themselves — the skill ships the rule file, nothing else.
 
@@ -110,7 +110,7 @@ This element is **spec; first implementor will validate.** The contract is captu
 
 ## 6. Gitignore stewardship
 
-Every `<skill> init` ensures the project's `.gitignore` contains, as **enumerated anchored entries** (not a glob):
+The project's `.gitignore` must contain, as **enumerated anchored entries** (not a glob):
 
 ```
 /.<skill>.local.json
@@ -121,18 +121,30 @@ One `.local.json` line per adopting skill. The `/.state/` line is added by the f
 
 The `*.local.json` glob is **rejected** — it would silently ignore files anywhere in the tree (e.g., `tools/foo/config.local.json`). Enumeration keeps gitignore explicit and auditable.
 
+**Preflight ensures these entries (§7), not just init.** Stewardship-as-prose-in-init is fragile: it runs once and nothing re-verifies it, so a project that never ran init (or whose init step was skipped) silently ships unignored state. Folding the ensure into preflight makes it self-healing.
+
 ## 7. Preflight contract
 
-`<skill> preflight` (or the skill's first-run guard) checks:
+`<skill> preflight` (or the skill's first-run guard) does two things: **checks** environment health and **ensures** the idempotent project scaffold.
+
+**Checks** (read-only; non-OK status blocks normal verb execution until remediated):
 
 - system deps present
 - the rule file in the install surface's rules dir (`.claude/rules/<NAME>.md` or `.agents/rules/<NAME>.md`) exists and matches the manifest hash (one of the six outcomes from §2)
 - config file readable (only if the skill requires config)
 - hooks installed (only if the skill installs hooks)
 
-Returns structured JSON. Non-OK status blocks normal verb execution until init re-runs.
+**Ensures** (idempotent, additive-only scaffold — the safe parts of setup):
 
-Each skill's preflight is **independent**. When multiple skills are stale in a single session, the operator gets per-skill prompts in invocation order. Cross-skill preflight orchestration is a known limitation — revisit if/when more than three skills install rules.
+- required project dirs exist (`mkdir … exist_ok=True`)
+- the §6 gitignore anchors are present — append any that are missing, **never remove or reorder** existing lines
+- report every line/dir it added (don't mutate silently)
+
+Gate the ensure behind a `scaffold-ensured: <version>` key in `.state/<skill>/` so it runs once per scaffold version, not every invocation. Bumping the version re-runs it (e.g., when this convention adds a new anchor). Because ensure is additive and runs once, it **will not fight an operator** who later deletes an anchor by choice — the tradeoff is that post-ensure drift is not re-detected.
+
+**init shrinks to consent-only setup** — the steps preflight cannot safely auto-run: decisions requiring operator input (e.g., `bd_not_initialized` → "fix prereqs or set `ignore-skill`?"), interactive config seeding, hook installation prompts. init may also call the same ensure-scaffold function, but the scaffold is no longer init-exclusive.
+
+Returns structured JSON. Each skill's preflight is **independent**. When multiple skills are stale in a single session, the operator gets per-skill prompts in invocation order. Cross-skill preflight orchestration is a known limitation — revisit if/when more than three skills install rules.
 
 ## Vendoring the manifest helper
 

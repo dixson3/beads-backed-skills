@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "files": {
+    "UPSTREAM_TRACKING.md": {
+      "sha256": "075a077c98c1e780a75fe4fc7d156a6cbe1df118f2bcbf9c4dba38c797db6e31",
+      "version": "1.0.0",
+      "deprecated": false,
+      "previous_versions": []
+    }
+  }
+}

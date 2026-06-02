@@ -268,6 +268,11 @@ All task tracking inside a beads-backed skill MUST use `bd`. Never use TodoWrite
 markdown checklists, or inline task lists. Sub-work discovered during execution creates
 new beads with `--deps discovered-from:<parent-id>`.
 
+For the dependency-type semantics behind `discovered-from` / `blocks` / `related` /
+`parent-child`, and the AI-supervised issue lifecycle these skills orchestrate, cite the
+plugin's stable `resources/DEPENDENCIES.md` and `resources/WORKFLOWS.md` rather than
+restating them — this skill owns only the authoring conventions layered on top.
+
 ## bd idioms in skill code
 
 - **Null-guard every `jq -r '.id'` from a `bd ... --json` write.** Use `// empty` and
@@ -317,4 +322,6 @@ Convention** — preflight, config/state, manifest-hashed companion rules), then
 - **`beads`** — the canonical routine `bd` loop.
 - **`beads-extra`** — direct-CLI gotchas (issue types, gates, dep mutation, defensive
   JSON, `bd batch`, `bd mol pour` output shape) that this skill's runtime steps depend on.
+- **Plugin `resources/`** — canonical taxonomy cited above: `DEPENDENCIES.md` (the four
+  dependency types) and `WORKFLOWS.md` (the AI-supervised issue lifecycle).
 - **`bdplan`** / **`bdresearch`** — complete worked examples of these conventions.

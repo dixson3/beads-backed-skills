@@ -24,13 +24,35 @@ parts that bite when you script `bd` directly.
 > lines (steveyegge/beads ≤ 0.x) no longer hold; where behavior is version-sensitive it
 > is called out inline. Re-verify against your installed `bd version` if it differs.
 
+> **Corrects the bundled `beads` plugin docs.** The installed `beads` plugin ships
+> pre-1.0.5 (0.60.0/ACF-era) `resources/` that are wrong for 1.0.5 — **this skill wins**
+> where they disagree:
+> - `resources/ASYNC_GATES.md` — uses `bd gate approve` / `bd gate eval` / `bd gate close`.
+>   None exist in 1.0.5; the gate verbs are `add-waiter | check | create | discover | list
+>   | resolve | show` (resolve a gate with `bd gate resolve`, see Gates below).
+> - `resources/CHEMISTRY_PATTERNS.md` — uses bare `bd pour` / `bd wisp` (both
+>   `unknown command` in 1.0.5; the real verbs are `bd mol pour` / `bd mol wisp`) and
+>   `bd mol catalog` (no such verb — list formulas with `bd formula list`).
+
 ## Issue types accepted by `bd create -t`
 
-`bug | feature | task | epic | chore | molecule | gate | event`.
+`bd create --help` advertises the normal-work enum: `bug | feature | task | epic | chore |
+decision` (aliases: `enhancement`/`feat`→`feature`, `dec`/`adr`→`decision`). Custom types
+require `types.custom` config.
 
-- **`gate` is first-class** in 1.0.5 — `bd create "Gate: …" -t gate` succeeds and the
-  result is a real gate (`bd gate …`, `bd gate resolve` apply). You do **not** need the
-  old `-t task` + `Gate:`-prefix workaround.
+The binary **also** accepts three built-in types that are not ordinary work items — each
+has a dedicated creation path, and a `molecule` or resolved-`gate` bead does **not** surface
+in `bd ready`:
+
+- **`gate`** — `bd create "Gate: …" -t gate` succeeds and yields a real gate (`bd gate …`,
+  `bd gate resolve` apply); no old `-t task` + `Gate:`-prefix workaround needed. Canonical
+  path: `bd gate create` or a formula `gate` step (see Gates below).
+- **`event`** — create with `--type=event` plus the `--event-*` flags (`--event-actor`,
+  `--event-category`, `--event-target`, `--event-payload`).
+- **`molecule`** — the chemistry container, normally created by `bd mol pour`, not by hand.
+
+Verified on 1.0.5: `-t decision|gate|event|molecule` each create a bead of that type; an
+unknown type (`-t bananafone`) is rejected with `invalid issue type`.
 
 ## Gates
 
@@ -51,6 +73,11 @@ Gate types reported by `bd gate --help`: `human` (resolve via `bd gate resolve` 
 `human`.
 
 ## Dependency-edge mutation
+
+For what the four dependency types **mean** (`blocks` / `related` / `parent-child` /
+`discovered-from` — only `blocks` gates readiness), see the plugin's canonical
+`resources/DEPENDENCIES.md`. This section covers only the edge **mutation** mechanics and
+1.0.5 gotchas that doc omits.
 
 - **Add an edge with `bd dep` — it is additive.** Either form works and neither drops
   existing edges:
@@ -185,3 +212,7 @@ gates without re-discovering them. (`bd mol wisp` is the ephemeral/vapor equival
 - **`beads-authoring`** — conventions for *building* beads-backed skills (formulas,
   coordinator loops, the `coordinate` subcommand). This skill is runtime CLI usage;
   that one is authoring.
+- **Plugin `resources/`** — canonical, stable taxonomy this skill cites rather than
+  restates: `DEPENDENCIES.md` (the four dependency types) and `WORKFLOWS.md` (the
+  AI-supervised issue lifecycle). Where the plugin's older `ASYNC_GATES.md` /
+  `CHEMISTRY_PATTERNS.md` disagree with 1.0.5, this skill wins (see the callout above).

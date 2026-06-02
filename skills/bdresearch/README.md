@@ -37,7 +37,7 @@ Or per-skill: copy the `skills/bdresearch` directory to `~/.claude/skills/bdrese
 
 - `/bdresearch init` — consent-only per-project setup (prereq check, opt-out; the rule is installed by `install.sh`, the scaffold is ensured by preflight)
 - `/bdresearch <topic>` — start a new research project
-- `/bdresearch coordinate [<idx-or-epic>]` — resolve a gate and run the coordinator loop
+- `/bdresearch coordinate [<idx-or-epic>]` — resolve a gate (or resume a crashed run) and run the coordinator loop
 - `/bdresearch status [<idx>]` — check research status
 
 Depth modes: `quick` (3–5 sources, same session, auto-resolved gate) | `standard` | `deep` | `ultradeep`. `quick` skips the new-session handoff; the others resolve the human gate in a fresh session via `coordinate`.
@@ -52,6 +52,7 @@ SCOPE → PLAN → GATE → TOOLING → RETRIEVE(×N) → TRIANGULATE → SYNTHE
 - **RETRIEVE** fans out dynamically — one bead per source cluster, injected after pour (the formula defines the fixed skeleton only); clusters run in parallel.
 - **TRIANGULATE → SYNTHESIZE → CRITIQUE → REFINE → PACKAGE** are serial; each depends on the prior's verified output.
 - **REFINE** may extend the DAG at runtime, spawning new RETRIEVE beads via `discovered-from:` when the critic finds gaps.
+- **Crash recovery** — a `coordinate` session that dies mid-loop is resumable: because the start gate is already resolved, `/bdresearch coordinate` finds the open epic via a durable pointer (the `epic:` line stamped into `plan.yaml` at pour) and re-enters the loop. A pre-loop stuck-bead sweep resets any stranded `in_progress` beads to `open` — never auto-closing — before work continues.
 
 See `spec/phases.md` and the rest of `spec/` for the full requirement set.
 
@@ -62,7 +63,7 @@ See `spec/phases.md` and the rest of `spec/` for the full requirement set.
 - `protocols/manifest.json` — hash manifest for the companion rule.
 - `formulas/bdresearch.formula.toml` — the fixed DAG skeleton (gate → tooling → triangulate → synthesize → critique → refine → package).
 - `agents/` — one file per pipeline role:
-  - `coordinator.md` — the dispatch loop.
+  - `coordinator.md` — the dispatch loop, with a pre-loop stuck-bead sweep for crash recovery.
   - `retriever.md` — gather sources for one cluster.
   - `triangulator.md` — cross-reference claims, score credibility, flag contradictions.
   - `synthesizer.md` — assemble cited findings.

@@ -599,9 +599,11 @@ a valid `/bdplan execute` target — it routes through the resume guard below.
 
 ### 5.2 — Resume guard
 
-A prior `bdplan execute` session can die mid-run (OOM, timeout, abort). Before
-resolving the start gate or entering the coordinator loop, detect whether this
-plan's epic already exists and carries prior progress:
+This section is bdplan's implementation of the beads-authoring resilience contract
+(REQ-ORCH-008 resume detection, REQ-ORCH-009 stuck-bead sweep). A prior `bdplan execute`
+session can die mid-run (OOM, timeout, abort). Before resolving the start gate or entering
+the coordinator loop, detect whether this plan's epic already exists and carries prior
+progress:
 
 ```bash
 SCAN=$(uv run ${SKILL_DIR}/scripts/plan_manager.py resume-scan "${plan_dir}" --json)
@@ -665,11 +667,20 @@ uv run ${SKILL_DIR}/scripts/plan_manager.py update-status "${plan_dir}" "reconci
 
 Confirm all changes committed, tests pass.
 
-### 6.2 — Push
+### 6.2 — Git handoff (conservative)
+
+Per the project's git authority (beads-authoring REQ-ORCH-014), do **not** push
+automatically. Report the proposed land-the-plane sequence and run it only on explicit
+operator or team-maintainer authorization:
 
 ```bash
-git pull --rebase && bd dolt push && git push
+git status   # show changed files under ${plan_dir} and .beads/
+# Propose (run only when authorized):
+#   git pull --rebase && bd dolt push && git push
 ```
+
+Reconciliation (6.3) references pushed commits, so it proceeds only after the push is
+authorized and completed.
 
 ### 6.3 — Reconcile upstream issues
 

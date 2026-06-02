@@ -3,11 +3,13 @@ name: beads-authoring
 description: >
   Conventions for building Claude Code skills that orchestrate work through beads (bd):
   formula authoring (.formula.toml), `bd mol pour` lifecycle, dynamic fan-out, agent
-  metadata wiring, the coordinator dispatch loop, and the `coordinate` subcommand with
-  gate auto-detection.
+  metadata wiring, the coordinator dispatch loop, the coordinator resilience contract
+  (crash/resume recovery, stuck-bead sweep, completion handoff), and the `coordinate`
+  subcommand with gate auto-detection.
   TRIGGER when: creating or modifying a beads-backed skill, authoring a `.formula.toml`,
-  wiring `bd mol pour` into a SKILL.md, implementing a coordinator agent, or designing
-  gate-resolution flow for a multi-session skill.
+  wiring `bd mol pour` into a SKILL.md, implementing a coordinator agent, designing
+  crash-recovery/resume for a re-invokable coordinator, or designing gate-resolution flow
+  for a multi-session skill.
   SKIP for: routine `bd` CLI use (use `beads`), direct-CLI gotchas (use `beads-extra`),
   or non-beads skills.
 user-invocable: false
@@ -226,6 +228,68 @@ directory, then loops:
 7. `bd close <id>` — mark complete.
 8. Repeat until `bd ready` returns empty.
 9. Optionally distill: `bd mol distill ${EPIC} <formula-name>`.
+
+The loop terminates on `bd ready` empty — **not** on the initial bead set closing. Beads created
+mid-run with `--deps discovered-from:<parent>` re-enter the loop automatically once their
+predecessors close, so discovered work runs in the same session.
+
+## Coordinator resilience
+
+The loop above is the happy path. A coordinator that can be re-invoked — after a crash, a session
+timeout, or (for scheduled skills) the next interval — needs a resilience envelope around it.
+`bdplan` (`agents/executor.md` + `scripts/plan_manager.py`) is the in-repo worked example; an
+external consumer (an Obsidian-vault "orchestration"/"jobs" skill) implements the same contract
+over a shared `bd` wrapper. Capture it once here rather than re-deriving it per skill.
+
+### Resume detection (before pouring)
+
+Before pouring or creating an epic, check whether one already exists for this work unit; if so,
+resume it — never pour a second (a duplicate epic forks progress). Detect via a **durable pointer**
+(the epic ID recorded in the skill's work artifact — e.g. bdplan's `**Epic:**` field in `plan.md`)
+with a **metadata fallback** (the epic stamped with its work-dir at pour, for artifacts written
+before the pointer existed). bdplan's `plan_manager.py resume-scan` is the worked example: it reads
+the pointer, falls back to the stamp, and reports descendant counts + the `stuck` list.
+
+### Stuck-bead sweep (resume only)
+
+A crash leaves beads `in_progress`/claimed; the ready loop skips non-`open` beads, so they stall
+forever. On resume, **before the loop and before evaluating any terminal/auto gate**:
+
+- **Reset, never auto-close.** Reset each stuck *durable* bead to `open`
+  (`bd update <id> --status open`) — re-workable. Resetting (not closing) keeps the epic
+  non-terminal, so a terminal gate (e.g. a reconcile/close gate) cannot auto-fire on a
+  resumed-but-incomplete run.
+- **Report ambiguous work, never guess.** A bead the sweep cannot positively classify — orphaned
+  `discovered-from` work, `blocked` with no live blocker — is reported to the operator. No bd-state
+  signal reliably separates disposable scratch from real work, so the close decision stays with the
+  operator.
+- **Ephemeral beads MAY be cleaned.** Vapor-phase operational beads (formula `phase = "vapor"`)
+  carry no irrecoverable state and may be closed automatically; liquid (durable) work beads may not.
+
+### Stale-run threshold (scheduled skills only)
+
+A coordinator re-triggered on an interval treats a prior run whose epic age exceeds **2× the
+interval** as dead: close the stale epic, start fresh. One-shot, operator-invoked skills (bdplan,
+bdresearch) have no interval and skip this.
+
+### Blocked-gate draining
+
+Handle gate-type beads in place: read the condition/test, `bd gate resolve` on pass, mark blocked on
+fail. **Drain all unblocked work before reporting blocked gates** — do not halt at the first one;
+parallel work usually remains. (bdplan `agents/executor.md` → *Blocked gates*.)
+
+### Discovered-work re-entry
+
+See the loop-termination note above — the loop runs until `bd ready` is empty, so `discovered-from`
+beads execute in the same run.
+
+### Completion & git handoff
+
+The run is complete when `bd ready` is empty **and** no resettable stuck beads remain. Then
+resolve/verify terminal auto-gates, `bd close ${EPIC}`, and perform the git handoff **per the
+project's git authority** — conservative default: report changed files and the proposed commit /
+`bd dolt push` / push commands; commit or push only under explicit operator or team-maintainer
+authority. (bdresearch `agents/coordinator.md` → *Completion* is the conservative worked example.)
 
 ## Coordinate subcommand
 

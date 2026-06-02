@@ -221,6 +221,8 @@ execution:
   estimated_beads: 10
   estimated_budget_usd: 8.00
   session_mode: new      # same | new
+
+# epic: <id>             # added at pour (Phase 3) — durable resume pointer (REQ-ORCH-008)
 ```
 
 Present the plan to the operator. Iterate until approved.
@@ -261,6 +263,16 @@ SYNTH_ID=$(echo "$RESULT"  | jq -r '.id_mapping["bdresearch.synthesize"]')
 CRIT_ID=$(echo "$RESULT"   | jq -r '.id_mapping["bdresearch.critique"]')
 REFINE_ID=$(echo "$RESULT" | jq -r '.id_mapping["bdresearch.refine"]')
 PACKAGE_ID=$(echo "$RESULT"| jq -r '.id_mapping["bdresearch.package"]')
+```
+
+**Persist the epic pointer** so a crashed `coordinate` session can resume after the start
+gate is already resolved (beads-authoring REQ-ORCH-008). Two writes keyed on `${EPIC}`: a
+**metadata fallback** (stamp the epic with its `research_dir`, queryable via
+`bd list --metadata-field`) and a **durable pointer** (`epic:` line in `plan.yaml`):
+
+```bash
+bd update ${EPIC} --metadata "$(jq -nc --arg d "${research_dir}" '{research_dir:$d}')" -q
+# Add/replace the `epic: ${EPIC}` line in ${research_dir}/plan.yaml (idempotent).
 ```
 
 4. **Attach agent metadata to each step** (`agent` path is relative to `${SKILL_DIR}`):
@@ -338,7 +350,7 @@ bd gate list --json    # filter to gates whose parent epic was poured from bdres
 
 | Open gates | Action |
 |-----------|--------|
-| 0 | Warn: "No pending research gates." Exit. |
+| 0 | Check for a resumable epic (see *Resume* below) **before** exiting — a crashed run's gate is already resolved, so 0 open gates may mean "resume," not "nothing to do." |
 | 1 | Auto-select, resolve, begin. |
 | N | Present each gate's parent-epic topic via AskUserQuestion; resolve the selected gate, begin. |
 
@@ -355,6 +367,33 @@ bd gate resolve ${GATE_ID}
 
 Then determine the research dir from the epic context, read
 `${SKILL_DIR}/agents/coordinator.md`, and run the loop with `EPIC` and `research_dir`.
+
+### Resume (crashed coordinate session)
+
+A `coordinate` session can die mid-loop. The start gate was resolved on first entry, so
+gate auto-detection then finds **0 open gates** — without a resume path the run is
+unrecoverable. Before reporting "No pending research gates," look for a resumable epic
+(beads-authoring REQ-ORCH-008 resume detection):
+
+```bash
+# Durable pointer (primary): read the `epic:` line from the target dir's plan.yaml.
+EPIC=$(grep -E '^epic:[[:space:]]' "${research_dir}/plan.yaml" 2>/dev/null \
+  | head -1 | sed -E 's/^epic:[[:space:]]*//')
+
+# Metadata fallback (dirs poured before the epic: pointer existed): only the top epic is
+# stamped with research_dir (Phase 3), so bd's own filters isolate it — no post-filter needed.
+[ -z "$EPIC" ] && EPIC=$(bd list --metadata-field research_dir="${research_dir}" \
+  --status open,in_progress --json \
+  | uv run ${SKILL_DIR}/scripts/research_manager.py json-get 0 id)
+```
+
+If a resumable bdresearch epic with unclosed descendants is found (via the explicit
+`<idx-or-epic>` argument or either lookup above), **resume** it: read
+`${SKILL_DIR}/agents/coordinator.md` and run the loop with that `EPIC` and `research_dir`.
+The coordinator's **pre-loop stuck-bead sweep** (REQ-ORCH-009) resets beads the crash
+stranded. Do **not** re-pour and do **not** re-resolve the gate — it is already resolved.
+
+If no resumable epic is found, warn "No pending research gates." and exit.
 
 ### Completion contract
 

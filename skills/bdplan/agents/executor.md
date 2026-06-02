@@ -9,10 +9,12 @@ Drives the plan molecule's bead DAG to completion.
 
 ## Resume orphan sweep
 
-Runs **only on a resume** (SKILL.md §5.2 detected an existing epic and the operator
-chose Resume), and **strictly before the ready loop and before any reconcile-trigger
-evaluation**. A crashed prior session can leave beads `in_progress`/claimed; the
-ready loop skips those, so they would silently stall.
+Implements the beads-authoring resilience contract (REQ-ORCH-008 resume detection,
+REQ-ORCH-009 stuck-bead sweep, REQ-ORCH-010 ephemeral-vs-durable). Runs **only on a
+resume** (SKILL.md §5.2 detected an existing epic and the operator chose Resume), and
+**strictly before the ready loop and before any reconcile-trigger evaluation**. A crashed
+prior session can leave beads `in_progress`/claimed; the ready loop skips those, so they
+would silently stall.
 
 1. Read the scan: `resume-scan "${plan_dir}" --json` reports the `stuck` list
    (`in_progress`/claimed beads) and descendant counts.
@@ -42,6 +44,7 @@ Repeat until `bd ready --json` returns no beads for this epic:
 
 ## Blocked gates
 
+Drain all unblocked work before reporting blocked gates (beads-authoring REQ-ORCH-012).
 When `bd ready` returns nothing but unclosed beads remain behind blocked gates:
 - Report gate conditions, test results, and unblock instructions
 - Wait for operator
@@ -54,17 +57,26 @@ When all execution beads (non-reconcile) close:
 
 ## Completion
 
+The run is complete when `bd ready` is empty and no resettable stuck beads remain
+(beads-authoring REQ-ORCH-014). Close the epic:
+
 ```bash
 bd close ${EPIC} --reason "Plan complete" --json
 ```
 
-Set plan.md status to `complete`. Commit and push:
+Set plan.md status to `complete`.
+
+**Git handoff (conservative — do NOT auto-commit or push).** Per the project's git
+authority (beads-authoring REQ-ORCH-014), do not commit, push, or run `bd dolt push`
+unless the active profile or the operator explicitly authorizes it. Report the handoff:
 
 ```bash
-git add "${plan_dir}" .beads/  # plan_dir may live under docs/plans/ or Incubator/<slug>/plans/
-git commit -m "bdplan: complete ${plan_id}"
-git pull --rebase && bd dolt push && git push
+git status   # show what changed under ${plan_dir} (docs/plans/ or Incubator/<slug>/plans/) and .beads/
 ```
+
+Then summarize for the operator: changed files, validation done, and the exact commands
+you propose — `git add "${plan_dir}" .beads/`, `git commit -m "bdplan: complete ${plan_id}"`,
+`git pull --rebase`, `bd dolt push`, `git push`. Run them only on explicit authorization.
 
 ## Rules
 

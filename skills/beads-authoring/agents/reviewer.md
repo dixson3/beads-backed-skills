@@ -43,10 +43,21 @@ for the pattern and report every hit as `{file}:{line} — <rule> — <why>`. Do
 - Consumer-specific `.formula.toml` placed in a shared skill rather than
   `<consumer>/formulas/`.
 
+**Coordinator resilience** (re-invokable coordinators; REQ-ORCH-008..014)
+- Re-invokable coordinator pours/creates an epic with no resume-detection guard — risks a
+  duplicate epic on re-run (no durable-pointer + metadata-fallback lookup before pour).
+- Resume sweep that **auto-closes** stuck durable beads instead of resetting them to `open`
+  and reporting unclassifiable ones; or sweeps *after* the ready loop / terminal-gate
+  evaluation instead of before.
+- Loop documented as terminating on the initial bead set closing rather than on `bd ready`
+  empty (drops `discovered-from` work).
+- Coordinator halts at the first blocked gate instead of draining all unblocked work first.
+- Scheduled/interval skill with no stale-run (2× interval) handling for a dead prior run.
+
 **Git authority**
 - Silent `bd dolt push 2>/dev/null || true`, or any auto commit/push, without the
   conservative handoff (report changed files + proposed commands; act only on
-  authorization).
+  authorization). The coordinator completion step (REQ-ORCH-014) follows this too.
 
 **Surface Convention** (see `skill-authoring`)
 - Config and state conflated; `prereqs-present` (state) written into `.<skill>.local.json`

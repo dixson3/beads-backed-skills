@@ -28,7 +28,7 @@ Claude Code has a native plan mode, but it treats planning as a single-session, 
 
 5. **Execute** — In a new session, `/bdplan execute` resolves the start gate and runs a coordinator loop: find ready beads, dispatch sub-agents, close beads, repeat. Capability gates block work that requires unavailable resources while all other work continues. Push the repo and the blocked gate can be resolved from another environment. If a prior execute session crashed mid-run, the resume guard detects the existing epic (no duplicate pour) and an orphan sweep resets stuck `in_progress` beads to `open` — never auto-closing — before the loop resumes.
 
-6. **Reconcile** — After execution, bdplan verifies the work, pushes, and updates upstream issues per the triage dispositions set during scoping.
+6. **Reconcile** — After execution, bdplan verifies the work, reports a conservative git handoff (proposed `git`/`bd dolt push` commands, pushed only on explicit authorization), and—once the push is authorized—updates upstream issues per the triage dispositions set during scoping.
 
 ## Prerequisites
 

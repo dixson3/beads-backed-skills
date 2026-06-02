@@ -1,6 +1,6 @@
 # beads-authoring
 
-Conventions for building Claude Code skills that orchestrate work through beads (`bd`): formula authoring (`.formula.toml`), the `bd mol pour` lifecycle, dynamic fan-out, agent metadata wiring, the coordinator dispatch loop, and the `coordinate` subcommand with gate auto-detection.
+Conventions for building Claude Code skills that orchestrate work through beads (`bd`): formula authoring (`.formula.toml`), the `bd mol pour` lifecycle, dynamic fan-out, agent metadata wiring, the coordinator dispatch loop, the coordinator resilience contract (crash/resume recovery, stuck-bead sweep, completion handoff), and the `coordinate` subcommand with gate auto-detection.
 
 This is a **reference skill** — design rules consumed while authoring other beads-backed skills, not a runtime workflow. `bdplan` and `bdresearch` are the worked examples of every convention it documents. It pairs with `skill-authoring` (general layout, token rules, the Skill Surface Convention) and `beads-extra` (direct-CLI gotchas the runtime steps depend on).
 
@@ -38,8 +38,8 @@ None. This is an instruction-only reference skill with no phases or state transi
 
 ## File layout
 
-- `SKILL.md` — the conventions: SKILL_DIR resolution, formula vs agent split, formula structure and gate gotchas, dynamic fan-out, bead metadata, the coordinator loop, and the `coordinate` subcommand.
+- `SKILL.md` — the conventions: SKILL_DIR resolution, formula vs agent split, formula structure and gate gotchas, dynamic fan-out, bead metadata, the coordinator loop, the coordinator resilience contract (resume/recovery/completion), and the `coordinate` subcommand.
 - `agents/reviewer.md` — read-only anti-patterns checklist; one audit item per rule in SKILL.md.
 - `spec/structure.md` — skill layout, formula-vs-agent separation, SKILL_DIR, handoff (REQ-STRUCT-*).
 - `spec/formulas.md` — formula authoring: gate two-bead gotcha, right-sizing, flat-structure limit, fan-out (REQ-FORMULA-*).
-- `spec/orchestration.md` — post-pour metadata, coordinator loop, coordinate subcommand, gate auto-detection (REQ-ORCH-*).
+- `spec/orchestration.md` — post-pour metadata, coordinator loop, the resilience contract (resume detection, stuck-bead sweep, stale-run threshold, blocked-gate draining, discovered-work re-entry, completion/git-handoff), coordinate subcommand, gate auto-detection (REQ-ORCH-*).

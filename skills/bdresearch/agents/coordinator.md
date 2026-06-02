@@ -18,6 +18,26 @@ SKILL_DIR=$(find ~/.claude/skills ~/.agents/skills "$GIT_ROOT/.claude/skills" "$
 - `EPIC` — the epic bead ID for this research molecule
 - `research_dir` — the research output directory (e.g., `docs/research/002-topic-slug` or `Incubator/<slug>/research/002-topic-slug`)
 
+## Pre-loop stuck-bead sweep
+
+Implements the beads-authoring resilience contract (REQ-ORCH-009). Run **once at
+coordinator entry, before the Execution Loop**. Idempotent: on a fresh run nothing is
+claimed, so this is a no-op; on a **resume** (a prior coordinate session crashed mid-loop,
+see SKILL.md *Coordinate → Resume*) it recovers beads the crash stranded — the loop skips
+non-`open` beads, so without this they stall forever.
+
+1. List beads under `${EPIC}` whose status is `in_progress` or claimed (`bd ready` /
+   `bd show --json`, parsed defensively via `research_manager.py json-get` — see
+   `beads-extra`).
+2. **Reset, never auto-close.** For each, `bd update <id> --status open` — re-workable.
+   Resetting (not closing) keeps the epic non-terminal, so the `package` step cannot run on
+   an incomplete research DAG.
+3. **Report ambiguous work, never guess.** Any bead the sweep cannot positively classify
+   (orphaned `discovered-from` work, `blocked` with no live blocker) is reported to the
+   operator, never auto-closed — no bd-state signal separates disposable scratch from real
+   work. bdresearch defines no ephemeral/vapor beads, so REQ-ORCH-010's auto-close
+   allowance does not apply: **no bead is ever auto-closed.**
+
 ## Execution Loop
 
 Repeat until `bd ready --json` returns no beads for this epic:
@@ -60,7 +80,9 @@ Repeat until `bd ready --json` returns no beads for this epic:
 
 ## Completion
 
-When `bd ready` returns no more beads for this epic:
+The run is complete when `bd ready` is empty **and** the pre-loop sweep left no
+unresettable stuck beads (beads-authoring REQ-ORCH-014). When `bd ready` returns no more
+beads for this epic:
 
 1. Check epic status:
    ```bash

@@ -1080,6 +1080,256 @@ def update_status(plan_dir: str, status: str, message: str):
     click.echo(json.dumps({"status": status, "log_entry": log_entry}))
 
 
+@cli.command("record-epic")
+@click.argument("plan_dir", type=click.Path(exists=True))
+@click.argument("epic_id")
+def record_epic(plan_dir: str, epic_id: str):
+    """Persist the plan<->epic linkage in plan.md at INTAKE (Issue 1.1, #2).
+
+    Two writes that make resume-guard deterministic:
+      (a) an `**Epic:** <id>` header field (inserted after `**Status:**`, or
+          updated in place if already present);
+      (b) an inert `- DATE intake: epic <id> poured` phase-log line. The
+          `intake:` prefix matches neither the `review:` nor `scoping:` regexes
+          the audit keys on, so it never perturbs review/scoping counts.
+
+    Idempotent: re-running for the same epic updates the header field and does
+    not append a duplicate intake line.
+    """
+    plan_md = Path(plan_dir) / "plan.md"
+    if not plan_md.exists():
+        click.echo("ERROR: plan.md not found", err=True)
+        sys.exit(1)
+
+    today = datetime.now().strftime("%Y-%m-%d")
+    intake_entry = f"- {today} intake: epic {epic_id} poured"
+    lines = plan_md.read_text().splitlines()
+    new_lines: list[str] = []
+    epic_field_written = False
+    intake_present = any(
+        re.match(rf"- \d{{4}}-\d{{2}}-\d{{2}} intake: epic {re.escape(epic_id)} poured", ln)
+        for ln in lines
+    )
+
+    skip_until = -1
+    for i, line in enumerate(lines):
+        if i < skip_until:
+            continue
+        if line.startswith("**Epic:**"):
+            # Update an existing Epic field in place.
+            new_lines.append(f"**Epic:** {epic_id}")
+            epic_field_written = True
+        elif line.startswith("**Status:**"):
+            new_lines.append(line)
+            if not epic_field_written and not any(
+                ln.startswith("**Epic:**") for ln in lines
+            ):
+                new_lines.append(f"**Epic:** {epic_id}")
+                epic_field_written = True
+        elif line.startswith("**Phase log:**"):
+            new_lines.append(line)
+            j = i + 1
+            while j < len(lines) and lines[j].startswith("- "):
+                new_lines.append(lines[j])
+                j += 1
+            if not intake_present:
+                new_lines.append(intake_entry)
+            skip_until = j
+        else:
+            new_lines.append(line)
+
+    plan_md.write_text("\n".join(new_lines) + "\n")
+    click.echo(json.dumps({
+        "epic_id": epic_id,
+        "epic_field": "written",
+        "intake_log_entry": None if intake_present else intake_entry,
+    }))
+
+
+# ---------------------------------------------------------------------------
+# Resume scan (Issue 1.2, #2 — executor crash recovery)
+# ---------------------------------------------------------------------------
+
+# A claimed bead lands in `in_progress` (bd update --claim sets status + owner),
+# so in_progress is the orphan-sweep target the executor resets to `open`.
+_STUCK_STATUSES = ("in_progress",)
+
+
+def _parse_bd_json(text: str) -> list[dict]:
+    """Defensively parse `bd ... --json` output to a flat list of issue dicts.
+
+    Per beads-extra (*`--json` is not always a single JSON document*), bd output
+    may be a single object, an array, an `{"issues": [...]}` envelope, or — rarely
+    — concatenated documents. This tolerates all four and flattens to issues.
+    """
+    text = text.strip()
+    if not text:
+        return []
+    docs: list = []
+    try:
+        docs = [json.loads(text)]
+    except json.JSONDecodeError:
+        dec = json.JSONDecoder()
+        idx, n = 0, len(text)
+        while idx < n:
+            while idx < n and text[idx] in " \t\r\n":
+                idx += 1
+            if idx >= n:
+                break
+            try:
+                obj, end = dec.raw_decode(text, idx)
+            except json.JSONDecodeError:
+                break
+            docs.append(obj)
+            idx = end
+    issues: list[dict] = []
+    for d in docs:
+        if isinstance(d, list):
+            issues.extend(x for x in d if isinstance(x, dict))
+        elif isinstance(d, dict):
+            if isinstance(d.get("issues"), list):
+                issues.extend(x for x in d["issues"] if isinstance(x, dict))
+            elif "id" in d:
+                issues.append(d)
+    return issues
+
+
+def _bd_list(*args: str) -> list[dict]:
+    """Run `bd list <args> --json` and defensively parse the result."""
+    try:
+        out = subprocess.check_output(["bd", "list", *args, "--json"],
+                                      text=True, stderr=subprocess.DEVNULL)
+    except (subprocess.CalledProcessError, FileNotFoundError, OSError):
+        return []
+    return _parse_bd_json(out)
+
+
+def _all_plan_beads() -> dict[str, dict]:
+    """All beads keyed by id, incl. closed + gates.
+
+    `bd list` omits gates and (by default) closed beads, so merge `--all` with an
+    explicit `--type gate --all` query. De-duplicated by id.
+    """
+    by_id: dict[str, dict] = {}
+    for issue in (*_bd_list("--all"), *_bd_list("--all", "--type", "gate")):
+        iid = issue.get("id")
+        if iid:
+            by_id[iid] = issue
+    return by_id
+
+
+def _read_plan_epic_field(plan_md_text: str) -> str | None:
+    """Return the `**Epic:** <id>` header field value, if present."""
+    for line in plan_md_text.splitlines():
+        if line.startswith("**Epic:**"):
+            return line.split("**Epic:**", 1)[1].strip() or None
+    return None
+
+
+def _resume_scan(plan_dir: Path) -> dict:
+    """Report a plan's epic and the bead state a resumed execute session faces.
+
+    Epic resolution order: plan.md `**Epic:**` field (epic_source=plan_md), then
+    a bead whose metadata.plan_dir matches (epic_source=bd_metadata), else none.
+    Walks the parent tree from the epic to count descendants by status and list
+    the stuck (in_progress/claimed) beads the orphan sweep will reset.
+    """
+    plan_md = plan_dir / "plan.md"
+    plan_text = plan_md.read_text() if plan_md.exists() else ""
+    beads = _all_plan_beads()
+
+    epic_id = _read_plan_epic_field(plan_text)
+    epic_source = "plan_md" if epic_id else "none"
+    if not epic_id:
+        wanted = {str(plan_dir), str(plan_dir).rstrip("/")}
+        candidates = [
+            b for b in beads.values()
+            if (b.get("metadata") or {}).get("plan_dir") in wanted
+        ]
+        roots = [b for b in candidates
+                 if b.get("issue_type") in ("molecule", "epic") and not b.get("parent")]
+        chosen = roots or candidates
+        if chosen:
+            epic_id = chosen[0].get("id")
+            epic_source = "bd_metadata"
+
+    result: dict = {
+        "plan_dir": str(plan_dir),
+        "epic_id": epic_id,
+        "epic_source": epic_source,
+        "found": epic_id is not None,
+    }
+    if not epic_id:
+        return result
+
+    children_of: dict[str | None, list[dict]] = {}
+    for b in beads.values():
+        children_of.setdefault(b.get("parent"), []).append(b)
+
+    seen: set[str] = set()
+    stack = [epic_id]
+    descendants: list[dict] = []
+    while stack:
+        for child in children_of.get(stack.pop(), []):
+            cid = child.get("id")
+            if not cid or cid in seen:
+                continue
+            seen.add(cid)
+            descendants.append(child)
+            stack.append(cid)
+
+    counts: dict[str, int] = {}
+    stuck: list[dict] = []
+    open_work_remaining = 0
+    for d in descendants:
+        st = d.get("status", "unknown")
+        counts[st] = counts.get(st, 0) + 1
+        if st in _STUCK_STATUSES:
+            stuck.append({
+                "id": d.get("id"),
+                "status": st,
+                "issue_type": d.get("issue_type"),
+                "title": d.get("title", ""),
+            })
+        if st != "closed" and d.get("issue_type") != "gate":
+            open_work_remaining += 1
+
+    result.update({
+        "counts": counts,
+        "total": len(descendants),
+        "stuck": stuck,
+        "open_work_remaining": open_work_remaining,
+    })
+    return result
+
+
+@cli.command("resume-scan")
+@click.argument("plan_dir", type=click.Path(exists=True))
+@click.option("--json-output", "--json", "as_json", is_flag=True,
+              help="Emit structured JSON. Default is a human-readable summary.")
+def resume_scan(plan_dir: str, as_json: bool):
+    """Report the plan's epic + stuck-bead state for the executor resume-guard."""
+    result = _resume_scan(Path(plan_dir))
+    if as_json:
+        click.echo(json.dumps(result, indent=2))
+        return
+    if not result["found"]:
+        click.echo(f"No epic found for {plan_dir} (plan.md **Epic:** field absent "
+                   f"and no bead metadata.plan_dir match). Treat as a fresh run.")
+        return
+    click.echo(f"Epic {result['epic_id']} (source: {result['epic_source']})")
+    click.echo(f"  descendants: {result['total']}  "
+               f"counts: {result['counts']}")
+    click.echo(f"  open work remaining (non-closed, non-gate): "
+               f"{result['open_work_remaining']}")
+    if result["stuck"]:
+        click.echo(f"  STUCK (in_progress/claimed — sweep resets to open):")
+        for s in result["stuck"]:
+            click.echo(f"    - {s['id']} [{s['issue_type']}] {s['title']}")
+    else:
+        click.echo("  no stuck beads")
+
+
 # ---------------------------------------------------------------------------
 # Portability audit (Epic 4)
 # ---------------------------------------------------------------------------
@@ -1368,13 +1618,26 @@ def _audit_plan(plan_dir: Path) -> dict:
 @click.argument("plan_dir", type=click.Path(exists=True))
 @click.option("--json-output", "as_json", is_flag=True,
               help="Emit structured JSON. Default is human-readable report.")
-def audit(plan_dir: str, as_json: bool):
-    """Run portability precondition audit on a plan directory (Epic 4)."""
+@click.option("--retro", is_flag=True,
+              help="Flag retro capture mode. Plumbing only — the mechanical audit is "
+                   "unchanged; conversation mining is the captor agent's job (#3 §4). "
+                   "Surfaced in output so the capture orchestration knows the mode.")
+def audit(plan_dir: str, as_json: bool, retro: bool):
+    """Run portability precondition audit on a plan directory (Epic 4).
+
+    `--retro` is accepted for a uniform capture invocation surface but does NOT
+    alter the mechanical verdict — retro conversation mining happens in the captor
+    agent, not here (see agents/captor.md, SKILL.md Phase: CAPTURE Retro mode).
+    """
     result = _audit_plan(Path(plan_dir))
+    result["retro"] = retro
     if as_json:
         click.echo(json.dumps(result, indent=2))
     else:
         click.echo(result["report"])
+        if retro:
+            click.echo("\n(retro mode: conversation mining is performed by the "
+                       "captor agent, not this audit.)")
     sys.exit(0 if result["status"] == "pass" else 1)
 
 

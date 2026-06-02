@@ -55,7 +55,7 @@ the snippets below.
 - `/bdplan init` — initialize bdplan for this project
 - `/bdplan <objective>` — new plan
 - `/bdplan continue [<plan-id>]` — resume open plan
-- `/bdplan capture [<plan-id>]` — audit plan folder portability and draft missing contract files (re-entrant, does not advance status)
+- `/bdplan capture [<plan-id>] [--retro]` — audit plan folder portability and draft missing contract files; `--retro` also mines the current session's conversation (re-entrant, does not advance status)
 - `/bdplan execute [<plan-id>]` — begin execution (new session)
 - `/bdplan status [<plan-id>]` — show progress
 - `/bdplan list` — list all plans
@@ -379,11 +379,26 @@ Read `${SKILL_DIR}/agents/reviewer.md` and perform a structured red-team review 
 - **REVISE**: address concerns, stay in PLAN
 - **INVESTIGATE-MORE**: return to INVESTIGATE for additional experiments
 
-**Reviewer is read-only** (REQ-AGENT-043). The reviewer agent never writes files. After the operator resolves the reviewer's concerns, the main session writes `${plan_dir}/reviews/pass-N.md` capturing: verdict, concerns verbatim, operator resolution for each concern, final status.
+**Reviewer is read-only** (REQ-AGENT-043). The reviewer agent never writes files — the main session does.
 
-**Pass numbering is strict.** After writing the phase-log entry for this review, `N` is derived as the count of lines matching `^- \d{4}-\d{2}-\d{2} review:` in the phase log. The file is `pass-${N}.md`. **Files are never overwritten.** On REVISE loops the cycle is: reviewer runs → operator resolves → `pass-N.md` written → phase-log entry appended → status either stays in `drafting` (revise) or advances (approve). Each full review cycle produces exactly one file.
+**Write the report at presentation (create-on-present).** The moment the reviewer presents — *before* the operator resolves anything — the main session writes `${plan_dir}/reviews/pass-N.md` **and** appends the phase-log `review:` line, as a **single atomic step**. The file captures, verbatim:
 
-The `reviews/pass-N.md` write and the phase-log entry are a **single atomic step** — both land before the status advances.
+- **Verdict** (APPROVE / REVISE / INVESTIGATE-MORE)
+- **Strengths**
+- **Concerns** — each with severity (high/medium/low) and recommendation, verbatim
+- **Missing** sections
+- **Gate Assessment** and **Upstream Assessment**
+- An **Operator Resolutions** table with one row per concern and status `unresolved`
+
+Writing at presentation makes the verdict portable the instant it exists: a plan parked in `review` with an outstanding REVISE keeps its report on disk, not only in the drafting conversation (#4).
+
+**Pass numbering is fixed at presentation.** `N` is the count of `^- \d{4}-\d{2}-\d{2} review:` phase-log lines *immediately after* this review's line is appended. Because the file and the phase-log line land in the same atomic step, the REQ-PORT-006 invariant `count(reviews/pass-*.md) == count(phase-log review: lines)` holds *while the plan sits in `review`* — exactly the state #4 makes portable.
+
+**Update in place on resolution.** As the operator resolves each concern, the main session edits the **same** `pass-N.md`: fill that concern's row in the Operator Resolutions table with the resolution and flip its status from `unresolved` to `resolved`, then set the file's final status when all concerns are resolved. Do **not** create a new file and do **not** append a second phase-log `review:` line — both were already written at presentation (above).
+
+**Lifecycle: mutable until resolved, then frozen.** The strict "never overwrite" rule relaxes to: the in-flight `pass-N.md` is **mutable** until every concern is resolved, then **frozen**. A frozen pass file is never edited again.
+
+**REVISE loops produce one file per cycle.** On REVISE, the operator addresses concerns and the reviewer runs *again* — that is a new review cycle: a new `pass-(N+1).md` is written at the next presentation (with its own phase-log `review:` line), updated in place, then frozen. Each full review cycle yields exactly one file; files are updated in place within a cycle, never replaced across cycles. The REQ-PORT-006 count-equality (`count(pass-*.md) == count(phase-log review: lines)`) is preserved at every step because file and phase-log line are written together at each presentation.
 
 ### Portability audit (last step of PLAN)
 
@@ -429,6 +444,20 @@ uv run ${SKILL_DIR}/scripts/plan_manager.py update-status "${plan_dir}" "approve
 
 ### 4.2 — Pour molecule
 
+**Duplicate-pour guard.** Before pouring, confirm this plan has no epic already
+(re-running intake on an already-intaken plan would pour a second epic — the failure
+#2 guards against):
+
+```bash
+SCAN=$(uv run ${SKILL_DIR}/scripts/plan_manager.py resume-scan "${plan_dir}" --json)
+if [ "$(echo "$SCAN" | uv run ${SKILL_DIR}/scripts/plan_manager.py json-get found)" = "True" ]; then
+  echo "An epic already exists for this plan: $(echo "$SCAN" | uv run ${SKILL_DIR}/scripts/plan_manager.py json-get epic_id)"
+  echo "Skip the pour and go to /bdplan execute (the resume guard at §5.2 will take over)."
+fi
+```
+
+If an epic exists, do **not** pour — proceed to `/bdplan execute`. Otherwise pour:
+
 ```bash
 cp -f "${SKILL_DIR}/formulas/plan-execute.formula.toml" .beads/formulas/
 RESULT=$(bd mol pour plan-execute --var objective="${objective}" --var plan_dir="${plan_dir}" --json)
@@ -447,7 +476,21 @@ START_GATE_BEAD=$(echo "$RESULT" | uv run ${SKILL_DIR}/scripts/plan_manager.py j
 *`bd mol pour` output shape*. `json-get` is bdplan's hardened defensive JSON parser
 (`bd` output may be a multi-document array; see `beads-extra` → *`--json` is not always a
 single JSON document*). Use `${START_GATE}` for entry-issue `--deps` wiring (§4.3 — tasks
-only, never epics) and `${START_GATE_BEAD}` for `bd gate resolve` (§5.2).
+only, never epics) and `${START_GATE_BEAD}` for `bd gate resolve` (§5.3).
+
+**Persist the plan↔epic linkage immediately** (so a crashed execute session can be resumed
+deterministically — Phase 5 resume-guard). Two writes, both keyed on `${EPIC}`:
+
+```bash
+# (a) Stamp the epic with its plan_dir so a plan with no **Epic:** field
+#     (intaken before this feature) is still findable by resume-scan.
+bd update ${EPIC} --metadata "{\"plan_dir\":\"${plan_dir}\"}" -q
+
+# (b) Record the epic ID in plan.md: an **Epic:** header field plus an inert
+#     `- DATE intake: epic <id> poured` phase-log line (matches neither the
+#     review: nor scoping: audit regexes). Idempotent.
+uv run ${SKILL_DIR}/scripts/plan_manager.py record-epic "${plan_dir}" "${EPIC}"
+```
 
 ### 4.3 — Create beads from plan.md
 
@@ -550,24 +593,63 @@ If no ID given:
 uv run ${SKILL_DIR}/scripts/plan_manager.py list --json-output
 ```
 
-Filter for plans with status `approved` and open start gates.
+Filter for plans with status `approved` and open start gates. A plan already in
+`executing` (its start gate resolved by a prior, possibly crashed, session) is also
+a valid `/bdplan execute` target — it routes through the resume guard below.
 
-### 5.2 — Resolve start gate
+### 5.2 — Resume guard
+
+A prior `bdplan execute` session can die mid-run (OOM, timeout, abort). Before
+resolving the start gate or entering the coordinator loop, detect whether this
+plan's epic already exists and carries prior progress:
+
+```bash
+SCAN=$(uv run ${SKILL_DIR}/scripts/plan_manager.py resume-scan "${plan_dir}" --json)
+FOUND=$(echo "$SCAN" | uv run ${SKILL_DIR}/scripts/plan_manager.py json-get found)
+```
+
+`resume-scan` reads the epic from plan.md's `**Epic:**` field (persisted at intake,
+§4.2), falling back to the `metadata.plan_dir` stamp for plans intaken before that
+field existed. It reports descendant bead counts and the `stuck` list
+(`in_progress`/claimed beads a crash left behind).
+
+- **`found` is `false`** — no existing epic. This is a fresh first execution:
+  proceed to §5.3 (resolve start gate) normally.
+- **`found` is `true`** — an epic already exists for this plan. Do **not** pour or
+  create a second epic (the duplicate-epic failure #2 guards against). Prompt the
+  operator with `AskUserQuestion`: **Resume** the existing epic (recommended) or
+  treat as **New**. On **New**, stop and tell the operator a fresh run requires
+  re-intake (a new pour) — execute cannot fabricate a second epic. On **Resume**,
+  run the orphan sweep below, then continue at §5.4 (the start gate is already
+  resolved from the prior session — do **not** re-resolve it).
+
+**Orphan sweep (resume only).** Run it **strictly before the ready loop and before
+any reconcile-trigger evaluation** — resetting beads keeps the epic non-terminal, so
+reconcile cannot fire on a resumed-but-incomplete plan. Follow the procedure in
+`agents/executor.md` → *Resume orphan sweep*: **reset** each `stuck` bead from the
+scan (`bd update <id> --status open`, making it re-workable) and **report** — never
+auto-close — any bead the sweep cannot positively classify, leaving the close
+decision to the operator. No bead is auto-closed: there is no reliable bd-state
+signal separating disposable scratch from real `discovered-from` work.
+
+### 5.3 — Resolve start gate
+
+Fresh runs only (skip on a resume — §5.2 already confirmed the gate is resolved):
 
 ```bash
 bd gate resolve ${START_GATE_BEAD}   # the gate-* bead, not the wrapper task ${START_GATE}
 uv run ${SKILL_DIR}/scripts/plan_manager.py update-status "${plan_dir}" "executing" -m "start gate resolved"
 ```
 
-### 5.3 — Run coordinator
+### 5.4 — Run coordinator
 
 Read `${SKILL_DIR}/agents/executor.md` and follow its execution loop. The executor drives the bead DAG to completion, handles capability gates, and triggers reconciliation.
 
-### 5.4 — Blocked gates
+### 5.5 — Blocked gates
 
 Drain all unblocked work first. Only report blocked gates when no other work can proceed. Include gate condition, test result, and unblock instructions.
 
-### 5.5 — Reconcile gate
+### 5.6 — Reconcile gate
 
 Auto-resolves when all execution beads close. Proceed to Phase 6.
 
@@ -605,9 +687,17 @@ uv run ${SKILL_DIR}/scripts/plan_manager.py update-status "${plan_dir}" "complet
 
 ## Phase: CAPTURE (manual)
 
-**Invocation:** `/bdplan capture [<plan-id>]`
+**Invocation:** `/bdplan capture [<plan-id>] [--retro] [--force]`
 
 Re-entrant and status-agnostic — runs in any phase before intake (`scoping`, `investigating`, `drafting`, `review`). Purely side-effecting on the plan folder; **does NOT advance plan status** and does NOT touch beads.
+
+### Retro mode (`--retro`)
+
+`--retro` extends — does **not** replace — folder-state capture by additionally mining the **current session's conversation** for context that never made it into the plan folder. It is for plans drafted before the portability contract existed, or rescoped mid-draft, where load-bearing context lives only in the drafting conversation.
+
+**Live-session boundary (hard).** `--retro` can only mine the conversation the operator runs it in. It **cannot resurrect a conversation already gone** — run it in a session that still holds the drafting context. Without `--retro`, capture mines folder state only (the default). When the drafting conversation is gone, fall back to plain `/bdplan capture` (folder-state capture remains the fallback).
+
+Under `--retro` the captor mines the conversation for the seven portability classes: **motivation**, **project environment**, **adjacent-concept glossary**, **reviewer verdicts/resolutions**, **upstream issue bodies**, **scope-change history**, and **runtime/environment assumptions**.
 
 ### Flow
 
@@ -615,7 +705,7 @@ Re-entrant and status-agnostic — runs in any phase before intake (`scoping`, `
    ```bash
    uv run ${SKILL_DIR}/scripts/plan_manager.py audit "${plan_dir}" --json-output
    ```
-2. **Draft missing files.** For each `fail` finding, dispatch the captor agent to draft the missing file from current plan state. Read `${SKILL_DIR}/agents/captor.md` and follow its procedure. The captor reads `plan.md`, `findings/`, `upstream-triage.md`, phase log, and (for upstream references) runs `gh issue view <N>`; it returns draft content. **Captor never writes files** — the main session does.
+2. **Draft missing files.** For each `fail` finding, dispatch the captor agent to draft the missing file from current plan state. Read `${SKILL_DIR}/agents/captor.md` and follow its procedure. The captor reads `plan.md`, `findings/`, `upstream-triage.md`, phase log, and (for upstream references) runs `gh issue view <N>`; it returns draft content. **When `--retro` is set, also pass the current conversation** so the captor mines it for the seven portability classes above (folder state still takes precedence; the conversation only fills gaps). **Captor never writes files** — the main session does.
 3. **Operator review.** Present each draft in full to the operator before writing. Never overwrite an existing file without `--force`.
 4. **Write.** On operator approval, write each file. Re-run the audit to confirm progress.
 
@@ -625,6 +715,7 @@ Re-entrant and status-agnostic — runs in any phase before intake (`scoping`, `
 - No bead mutations. No molecule pour.
 - Existing files are preserved unless the operator passes `--force`.
 - If no findings are `fail`, report "already portable" and exit.
+- `--retro` mines the **current** session only. It never claims to recover a conversation that is gone; folder-state capture is the fallback.
 
 ---
 

@@ -6,6 +6,7 @@ Drafts missing portability-contract files for a plan folder, from current plan s
 
 - `plan_dir` — plan directory path (read-only from the agent's perspective)
 - `findings` — list of failing audit items to draft for, from `plan_manager.py audit --json-output`
+- `retro` — boolean. When set, the main session also passes the **current session's conversation** as a source (see Retro mode).
 
 ## Read
 
@@ -14,6 +15,20 @@ Drafts missing portability-contract files for a plan folder, from current plan s
 - `${plan_dir}/upstream-triage.md` — upstream triage working file
 - For each upstream reference being drafted: `gh issue view <N> --repo <owner/repo> --json number,title,url,state,labels,body`
 - `${plan_dir}/reviews/` — existing review files (if any), to avoid pass-number collisions
+
+## Retro mode (`--retro`)
+
+When `retro` is set, mine the **current session's conversation** for context that exists only in the drafting dialogue and never landed in the folder. This **extends** folder-state capture — it does not replace it. Folder state takes precedence; the conversation only fills gaps. Mine for the seven portability classes:
+
+1. **Motivation** — the "why this exists" the operator stated in conversation.
+2. **Project environment** — stack, setup, non-obvious project facts.
+3. **Adjacent-concept glossary** — terms/jargon defined mid-conversation.
+4. **Reviewer verdicts/resolutions** — review outcomes and how concerns were resolved (only if stated; never invent — see Rules).
+5. **Upstream issue bodies** — issue context discussed but not yet inlined to `references/`.
+6. **Scope-change history** — rescopings, dropped/added goals, pivots.
+7. **Runtime/environment assumptions** — OS, shell, network, credentials, side-effect permissions the plan assumes.
+
+**Live-session boundary (hard):** retro mines only the conversation it runs in. It cannot recover a conversation that is gone — say so plainly rather than fabricating. If a class has no conversational evidence, omit it; do not invent.
 
 ## Draft
 
@@ -51,3 +66,4 @@ Return structured output suitable for operator review before any write:
 - **Preserve existing files.** If an audit item is `warn` (grandfathered) and a file already exists, do not draft a replacement.
 - **Repo-relative paths only.** Never reference absolute paths or `../` in drafted content.
 - **Quote upstream bodies verbatim.** Do not summarize or paraphrase issue bodies when drafting `references/upstream-*.md`.
+- **Retro is current-session only.** Under `--retro`, mine only the live conversation; never claim to recover a conversation that is gone. If a portability class has no conversational evidence, omit it — folder-state capture is the fallback.

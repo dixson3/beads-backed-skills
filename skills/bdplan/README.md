@@ -26,7 +26,7 @@ Claude Code has a native plan mode, but it treats planning as a single-session, 
 
 4. **Intake** — On approval, bdplan creates a beads molecule: a DAG of bead issues mirroring the plan's epics, with a start gate that can only be released in a new session. This is the handoff point.
 
-5. **Execute** — In a new session, `/bdplan execute` resolves the start gate and runs a coordinator loop: find ready beads, dispatch sub-agents, close beads, repeat. Capability gates block work that requires unavailable resources while all other work continues. Push the repo and the blocked gate can be resolved from another environment.
+5. **Execute** — In a new session, `/bdplan execute` resolves the start gate and runs a coordinator loop: find ready beads, dispatch sub-agents, close beads, repeat. Capability gates block work that requires unavailable resources while all other work continues. Push the repo and the blocked gate can be resolved from another environment. If a prior execute session crashed mid-run, the resume guard detects the existing epic (no duplicate pour) and an orphan sweep resets stuck `in_progress` beads to `open` — never auto-closing — before the loop resumes.
 
 6. **Reconcile** — After execution, bdplan verifies the work, pushes, and updates upstream issues per the triage dispositions set during scoping.
 
@@ -66,7 +66,7 @@ Or per-skill: copy the `skills/bdplan` directory to `~/.claude/skills/bdplan` an
 /bdplan init                     Initialize bdplan for this project
 /bdplan <objective>              New plan
 /bdplan continue [<plan-id>]     Resume open plan
-/bdplan capture [<plan-id>]      Audit portability and draft missing contract files (no status change)
+/bdplan capture [<plan-id>] [--retro]   Audit portability and draft missing contract files; --retro also mines the current session's conversation (no status change)
 /bdplan execute [<plan-id>]      Begin execution (new session required)
 /bdplan status [<plan-id>]       Show progress
 /bdplan list                     List all plans
@@ -121,7 +121,7 @@ formulas/
   plan-execute.formula.toml  Beads molecule for execution pipeline
   plan-investigate.formula.toml  Beads molecule for investigation wisp
 scripts/
-  plan_manager.py            Plan CRUD, prerequisite checking, portability audit (run via uv)
+  plan_manager.py            Plan CRUD, prerequisite checking, portability audit, crash-recovery resume scan (run via uv)
   manifest_update.py         Vendored manifest hash/version helper (run via uv)
 protocols/
   PLANS.md                   Planning protocol (installed to the scope+surface rules dir, e.g. ~/.claude/rules/PLANS.md or <git-root>/.claude/rules/PLANS.md, by install.sh)

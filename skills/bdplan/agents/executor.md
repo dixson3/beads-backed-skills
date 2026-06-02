@@ -7,6 +7,26 @@ Drives the plan molecule's bead DAG to completion.
 - `EPIC` — epic bead ID
 - `plan_dir` — plan directory path
 
+## Resume orphan sweep
+
+Runs **only on a resume** (SKILL.md §5.2 detected an existing epic and the operator
+chose Resume), and **strictly before the ready loop and before any reconcile-trigger
+evaluation**. A crashed prior session can leave beads `in_progress`/claimed; the
+ready loop skips those, so they would silently stall.
+
+1. Read the scan: `resume-scan "${plan_dir}" --json` reports the `stuck` list
+   (`in_progress`/claimed beads) and descendant counts.
+2. **Reset, never close.** For each bead in `stuck`, reset it to re-workable:
+   `bd update <id> --status open`. Resetting (not closing) keeps the epic
+   non-terminal, so the reconcile gate cannot auto-fire on a resumed-but-incomplete
+   plan.
+3. **Report, never guess.** Report — do not mutate — any bead the sweep cannot
+   positively classify (e.g. orphaned `discovered-from` work, a bead `blocked` with
+   no live blocker). There is no reliable bd-state signal separating disposable
+   scratch from real work, so the close decision stays with the operator. **No bead
+   is ever auto-closed.**
+4. Re-run `resume-scan --json` to confirm `stuck` is empty, then enter the loop.
+
 ## Loop
 
 Repeat until `bd ready --json` returns no beads for this epic:

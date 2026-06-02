@@ -24,6 +24,10 @@ REQ-AGENT-012: The executor dispatches the reconciler agent when all execution b
 Rationale: Reconciliation depends on all work being complete; premature reconciliation produces incorrect upstream updates.
 Verification: executor.md Reconcile trigger section references `agents/reconciler.md`.
 
+REQ-AGENT-013: On a resume, the executor runs the orphan sweep before the ready loop: it resets stuck (`in_progress`/claimed) beads to `open` and reports — never auto-closes — any bead it cannot positively classify. The sweep runs strictly before any reconcile-trigger evaluation.
+Rationale: A crashed prior session leaves stuck beads the ready loop would skip; resetting makes them re-workable without auto-closing real work. See REQ-RESUME-002/003 (phases.md) for the cross-cutting contract.
+Verification: executor.md "Resume orphan sweep" section specifies reset-not-close, report-unclassifiable, and the before-ready-loop ordering.
+
 ## Investigator
 
 REQ-AGENT-020: Investigators run in disposable worktrees. No code from an investigation worktree lands in the project.
@@ -58,9 +62,9 @@ REQ-AGENT-042: High-severity concerns block approval.
 Rationale: Proceeding with known high-severity issues produces plans that fail during execution.
 Verification: reviewer.md Rules: "High blocks approval."
 
-REQ-AGENT-043: The reviewer agent is read-only. It never writes files. `reviews/pass-N.md` and phase-log entries are written by the main session after the operator resolves reviewer concerns.
-Rationale: Agents that write files outside their dispatch scope violate agent isolation (REQ-AGENT-050 sibling) and make the review capture path non-auditable. Keeping the reviewer read-only lets the main session atomically write the review artifact and the phase-log entry together.
-Verification: reviewer.md Rules: "Read-only — never writes files"; SKILL.md Phase 3 Review section states "Reviewer is read-only" and that main session writes `reviews/pass-N.md`.
+REQ-AGENT-043: The reviewer agent is read-only. It never writes files. `reviews/pass-N.md` and the phase-log `review:` line are written by the main session **at reviewer presentation** (create-on-present, #4) as a single atomic step, then the same file is updated in place as the operator resolves concerns (REQ-PORT-006/008).
+Rationale: Agents that write files outside their dispatch scope violate agent isolation (REQ-AGENT-050 sibling) and make the review capture path non-auditable. Keeping the reviewer read-only lets the main session atomically write the review artifact and the phase-log entry together; writing at presentation (not after resolution) makes the verdict portable while the plan is still parked in `review`.
+Verification: reviewer.md Rules: "Read-only — never writes files" + "writes ... at presentation"; SKILL.md Phase 3 Review section "Write the report at presentation" states the main session writes `reviews/pass-N.md` + phase-log line atomically at presentation.
 
 ## Captor
 
@@ -75,6 +79,10 @@ Verification: `agents/captor.md` Rules: "Never write files. The main session wri
 REQ-AGENT-062: The captor must not invent reviewer verdicts, fabricate tool versions, or paraphrase upstream issue bodies. Reviewer drafts that cannot be reconstructed from phase-log reasoning are flagged inconclusive for the operator.
 Rationale: Portability scaffolding is worthless if its content is fictional. Drafts must be derivable from plan state, not hallucinated.
 Verification: `agents/captor.md` Rules enumerate these constraints.
+
+REQ-AGENT-063: Under `--retro`, the captor additionally mines the current session's conversation for the seven portability classes (motivation, project environment, adjacent-concept glossary, reviewer verdicts/resolutions, upstream issue bodies, scope-change history, runtime/environment assumptions). Retro extends — never replaces — folder-state capture (folder state takes precedence), stays read-only, and observes the hard live-session boundary: it mines only the live conversation and omits any class lacking conversational evidence rather than inventing it. See REQ-PORT-032/033.
+Rationale: Conversation-only context is the most-likely-to-be-lost portability class. Mining it in the agent (not the script) keeps the audit mechanical (REQ-PORT-010).
+Verification: `agents/captor.md` "Retro mode (`--retro`)" section enumerates the seven classes and the live-session boundary; Rules include "Retro is current-session only".
 
 ## Planner
 

@@ -24,6 +24,10 @@ REQ-DATA-012: The Phase log is append-only. Each entry is formatted `- YYYY-MM-D
 Rationale: Append-only log preserves the full history of phase transitions for audit and debugging.
 Verification: `update_status` in plan_manager.py appends without removing prior entries.
 
+REQ-DATA-014: At intake (after the pour), the plan↔epic linkage is persisted two ways: an `**Epic:** <id>` header field in plan.md and a `metadata.plan_dir` stamp on the poured epic bead. The `**Epic:**` field is absent before intake (no epic exists yet) and is therefore not in the REQ-DATA-010 always-required set. The metadata stamp is the fallback for plans intaken before the field existed.
+Rationale: Crash recovery (#2) needs a deterministic pointer from a plan folder to its epic. Two independent records (plan.md field + bead metadata) make the resume guard robust to either being absent.
+Verification: `record_epic` in plan_manager.py writes the `**Epic:**` field; SKILL.md §4.2 stamps `bd update ${EPIC} --metadata` and invokes `record-epic`; `_resume_scan` reads both.
+
 REQ-DATA-013: The Upstream Issues table has columns: Issue, Title, Disposition, Notes, Resolved By.
 Rationale: The reconciler reads this table to determine what action to take on each upstream issue after execution.
 Verification: SKILL.md Phase 3 plan.md template; reconciler.md Execute step 1.

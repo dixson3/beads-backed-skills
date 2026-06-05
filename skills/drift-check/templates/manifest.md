@@ -1,6 +1,6 @@
 # DRIFT-CHECK.md (manifest template)
 
-Copy this file to your repository's rules surface as `DRIFT-CHECK.md`, fill in the seven
+Copy this file to your repository root as `DRIFT-CHECK.md`, fill in the seven
 sections for your artifact graph, then mark it approved (see §0). Until approved, the engine
 treats the repo as having no manifest and stays a silent no-op.
 

@@ -17,8 +17,8 @@ strict evidence standard and returns PASS / FAIL / INCONCLUSIVE / CONFLICT. It n
 - Claude Code (the skill loads as part of this repo's skill set).
 - No CLI tools beyond what Claude Code provides (`depends-on-tool: []`); no in-repo skill
   dependency (`depends-on-skill: []`). The verifier sub-agent uses only Read / Grep / Bash.
-- A repo opts in by authoring (or bootstrapping) an approved `DRIFT-CHECK.md` manifest in its
-  rules surface. With no approved manifest the engine is a silent no-op.
+- A repo opts in by authoring (or bootstrapping) an approved `DRIFT-CHECK.md` manifest at its
+  repo root. With no approved manifest the engine is a silent no-op.
 
 ## Install
 

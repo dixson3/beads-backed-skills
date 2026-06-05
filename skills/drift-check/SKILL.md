@@ -35,7 +35,7 @@ Repo-agnostic engine that detects **drift between a source of truth and its deri
 (implementation ↔ docs ↔ spec) on edit, via an isolated, evidence-based verification pass.
 
 The engine is fixed and carries no repo vocabulary. Each repository supplies a thin
-**markdown manifest** (`DRIFT-CHECK.md` in its rules surface) declaring the artifact graph:
+**markdown manifest** (`DRIFT-CHECK.md` at the repo root) declaring the artifact graph:
 which files are nodes, which source-of-truth edges connect them, the per-edge contracts, the
 changed-path globs that scope a check, and the fixed-authority policy. The engine reads that
 manifest, matches the changed path against its trigger globs, dispatches a report-only
@@ -62,15 +62,16 @@ SKILL_DIR=$(find ~/.claude/skills ~/.agents/skills "$GIT_ROOT/.claude/skills" "$
 
 ## Manifest detection
 
-The per-repo manifest is `DRIFT-CHECK.md` in the repo's rules surface. Resolve it in
-precedence order (first hit wins):
+The per-repo manifest is `DRIFT-CHECK.md` at the repo root (its canonical home — it is
+on-demand config, not an `@`-included rule, so it does not belong in a rules surface).
+`.agents/rules/` and `.claude/rules/` are also detected as fallbacks. Resolve in precedence
+order (first hit wins):
 
 ```bash
 GIT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo .)
-MANIFEST=$(ls "$GIT_ROOT"/AGENTS/DRIFT-CHECK.md \
+MANIFEST=$(ls "$GIT_ROOT"/DRIFT-CHECK.md \
               "$GIT_ROOT"/.agents/rules/DRIFT-CHECK.md \
-              "$GIT_ROOT"/.claude/rules/DRIFT-CHECK.md \
-              "$GIT_ROOT"/DRIFT-CHECK.md 2>/dev/null | head -1)
+              "$GIT_ROOT"/.claude/rules/DRIFT-CHECK.md 2>/dev/null | head -1)
 ```
 
 A manifest is **approved** only if its §0 Status reads `approved: yes`. A missing manifest or

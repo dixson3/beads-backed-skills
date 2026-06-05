@@ -13,7 +13,7 @@ Do NOT use Claude Code memory (`~/.claude/` memory directories). Two tiers:
 
 Enforced on every create/modify of skill files, via always-loaded companion rules `install.sh` installs to the rules surface (`~/.<surface>/rules/`):
 
-- **Consistency / drift** — `DRIFT-CHECK-TRIGGER.md` (drift-check) verifies cross-edge content agreement against this repo's manifest `AGENTS/DRIFT-CHECK.md`. Procedure: `skills/drift-check/`.
+- **Consistency / drift** — `DRIFT-CHECK-TRIGGER.md` (drift-check) verifies cross-edge content agreement against this repo's manifest `DRIFT-CHECK.md` (repo root). Procedure: `skills/drift-check/`.
 - **Token efficiency** — `INSTRUCTIONS.md` (optimal-instructions) → `skill-authoring` `SKILL.md` "Token efficiency" § (single source of truth).
 
 ## Upstream Tracking

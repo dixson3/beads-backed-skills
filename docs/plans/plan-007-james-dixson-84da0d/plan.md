@@ -3,7 +3,7 @@
 **ID:** plan-007-james-dixson-84da0d
 **Author:** james-dixson
 **Created:** 2026-06-04
-**Status:** approved
+**Status:** complete
 **Epic:** beads-skills-mol-s3x
 **Phase log:**
 - 2026-06-04 scoping: initial scope captured
@@ -12,6 +12,13 @@
 - 2026-06-04 review: plan v1 presented
 - 2026-06-04 approved: operator approved
 - 2026-06-04 intake: epic beads-skills-mol-s3x poured
+- 2026-06-04 executing: start gate resolved
+- 2026-06-04 complete: plan complete — all epics closed, migration acceptance PASS
+- 2026-06-04 refinement (beads-skills-djy): superseded the §3.1 "thin pointers" approach — the
+  historical pointers `AGENTS/CONSISTENCY.md` + `AGENTS/DOCUMENTATION.md` were deleted (no
+  functional value), and the firing surface `DRIFT-CHECK-TRIGGER.md` is installed to the
+  rules surface by `install.sh` (always-loaded, like its sibling companion rules) instead of
+  `@`-included from `CLAUDE.md`. CLAUDE.md Rules section thinned for token efficiency.
 
 ## Objective
 

@@ -37,6 +37,16 @@ a skill and each repo supplies a thin manifest.
 Triggered by operator hypothesis (this session): "can we create a new utility skill that
 captures the intent of these two files but applies them to any general code repository."
 
+## Upstream Issues
+
+No upstream issues are *incorporated* by this plan (none of the 4 open repo issues relate).
+This plan is *tracked by* a single coarse upstream issue, filed at intake per the repo's
+upstream-tracking convention:
+
+| Issue | Title | Disposition | Notes | Resolved By |
+|-------|-------|-------------|-------|-------------|
+| [#16](https://github.com/dixson3/beads-backed-skills/issues/16) | drift-check: generalize CONSISTENCY/DOCUMENTATION into a portable drift-detection skill | tracks-plan | Coarse tracking issue for the whole effort (mirrors #14 for plan-006); not an incorporated worklist item | epic `beads-skills-mol-s3x` |
+
 ## Scope decisions (operator-confirmed, this session)
 
 1. **Config acquisition = hybrid bootstrap.** First run infers a draft manifest from repo

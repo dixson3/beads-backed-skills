@@ -27,4 +27,5 @@ Token efficiency is enforced by the always-loaded `INSTRUCTIONS.md` rule shipped
 - **Source:** github
 - **Repo:** dixson3/beads-backed-skills
 - **Tool:** `gh issue`
+- **Granularity:** coarse (default). File ONE tracking issue per plan-scale effort (e.g. one per `/bdplan` plan), linking the plan + epic — not one issue per execution bead. At land-the-plane, default to creating/updating that single coarse issue; do NOT push granular sub-beads upstream unless explicitly asked. Precedent: #13 (plan-005), #14 (plan-006), #16 (plan-007).
 - **Notes:** Issues filed against the published skill repo. This working directory (`beads-skills`) is the same codebase.

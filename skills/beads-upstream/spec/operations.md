@@ -35,3 +35,11 @@ The three operations beads-upstream owns. Source of truth for the skill's behavi
 - **REQ-OP-008:** Status/pull treats the upstream tracker as the authoritative worklist when enabled,
   and falls back to local `bd ready` / `bd list` when disabled. — *Rationale:* the local bead set may
   be stale relative to upstream. — *Verify:* SKILL.md "Status / pull" §.
+
+- **REQ-OP-009:** Updating an already-mapped bead's upstream issue body is done by folding the new
+  content into the bead's **`description`** and re-pushing — bd's GitHub sync maps `description` →
+  issue body only; `notes`/`design` are not synced. The re-push dry-run must read `Would update`
+  (not `Would create`), and the open-issue count must stay constant. — *Rationale:* `--notes` edits
+  silently never reach upstream; `bd update --description` replaces (never appends) and `bd show
+  --json` is a list, so a naive read-modify-write can clobber the description. — *Verify:* SKILL.md
+  push step §6; Safety invariants "Only `description` syncs upstream".

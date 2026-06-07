@@ -200,6 +200,33 @@ before trusting re-push.
 > at 1 (no duplicate — it updates the mapped issue). The dedicated `push` subcommand records the
 > mapping identically to bare `sync`, so scoped re-push is safe for partial-failure recovery.
 
+### 6 — Updating a mapped bead (only the `description` field syncs)
+
+**The accepted pattern for getting new content onto an already-mapped bead's upstream issue: put
+it in the bead's `description`, then re-push.** bd's GitHub sync maps **`description` → issue body
+only**. The `notes` (and `design`) fields are **not** synced — editing them via `bd update --notes`
+bumps the issue's `updatedAt` on the next push but the text never reaches the body. So:
+
+1. **Fold the content into `description`** (the synced field). Don't rely on `--notes` for anything
+   that must travel upstream — keep `description` the single canonical place. (Alternative when the
+   description should stay terse: post the text as a `gh issue comment` directly — but that comment
+   is *not* bead-synced and won't update on future pushes; prefer folding into `description`.)
+2. **Re-push** — `bd github push <id>`. The dry-run must read **`Would update in GitHub`**, not
+   `Would create` (confirms the `External:` mapping is in force; a `create` means the mapping was
+   lost — stop and investigate before duplicating).
+3. **Verify** the new text is in the body: `gh issue view <N> --json body --jq '.body' | grep …`,
+   and that the open-issue count is unchanged.
+
+> **Verified (bd 1.0.5, 2026-06-07):** updating only `--notes` and re-pushing left the issue body
+> unchanged (timestamp bumped, no content); folding the same text into `--description` and
+> re-pushing carried it into the body, still a single issue (in-place update).
+
+**`bd show <id> --json` returns a JSON *list*, not an object** (per `beads-extra` defensive parsing).
+When reconstructing a `description` to append to, index `[0]` — a parse that assumes a dict yields an
+empty string, and `bd update --description "$empty"` **silently clobbers the existing description**
+(`bd update` replaces, never appends). Read → verify non-empty → append → write; if you do clobber,
+the prior text survives in the upstream issue body and can be recovered from there.
+
 ## Status / pull
 
 First read the config (`bd config get custom.upstream.enabled`).
@@ -257,6 +284,9 @@ The `--issues` / `--parent` / `--dry-run` flags are confirmed present on backend
 - **Auth is inline-only.** `TOKEN=$(...) bd <backend> sync …` — never write a token to config.
 - **Disabled (`none`) is honored everywhere.** Push and status no-op cleanly; the close-time
   rule trigger is a silent no-op.
+- **Only `description` syncs upstream.** Content that must reach the issue body goes in the bead's
+  `description`, not `notes`/`design`; `bd update --description` replaces (never appends), and
+  `bd show --json` is a list — see Push step §6.
 
 ## See also
 

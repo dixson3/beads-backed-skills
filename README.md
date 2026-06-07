@@ -15,6 +15,7 @@ Optional (detected at runtime):
 
 - `gh` — GitHub CLI (upstream issue tracking)
 - `glab` — GitLab CLI (upstream issue tracking)
+- `d2` — diagram renderer for the `diagram-authoring` skill (`.d2` → `.png`; `brew install d2`)
 
 ## Install
 
@@ -89,6 +90,7 @@ skill — that keeps `--group utility` provably beads-free.
 | [skill-authoring](skills/skill-authoring/README.md) | auto | How to author, structure, and optimize Claude Code skills themselves |
 | [optimal-instructions](skills/optimal-instructions/README.md) | auto | Auto-fix skill for project instruction files (CLAUDE.md, AGENTS.md, AGENTS/*) — token-efficiency cuts + AGENTS.md-primacy structural proposals |
 | [drift-check](skills/drift-check/README.md) | auto | Verifies content agreement across a repo's declared source-of-truth edges (impl ↔ docs ↔ spec) via a per-repo DRIFT-CHECK.md manifest; reports drift, never auto-fixes |
+| [diagram-authoring](skills/diagram-authoring/README.md) | `/diagram-authoring` | Render light-mode, white-background diagram PNGs from d2 source, with the `.d2` kept beside every `.png`; location-agnostic for plans, research, skill specs, and top-level docs |
 | [beads-upstream](skills/beads-upstream/README.md) | `/beads-upstream` | Configurable, GitHub-first upstream tracking — push open/deferred beads to an issue tracker as a land-the-plane step; upstream issues as the worklist |
 
 "auto" skills are not user-invoked directly; they trigger from their `description`

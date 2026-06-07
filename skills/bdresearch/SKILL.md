@@ -235,7 +235,8 @@ Present the plan to the operator. Iterate until approved.
 1. **Create the research directory and save the plan:**
 
 ```bash
-mkdir -p "${research_dir}/scripts" "${research_dir}/artifacts"
+mkdir -p "${research_dir}/scripts" "${research_dir}/artifacts" "${research_dir}/diagrams"
+# diagrams/ holds d2 diagrams (.d2 source + .png render) authored per the diagram-authoring skill
 # Write plan.yaml to ${research_dir}/plan.yaml
 ```
 

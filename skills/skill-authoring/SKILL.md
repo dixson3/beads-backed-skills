@@ -37,6 +37,21 @@ Rules for Claude Code skills and instruction files. Background and worked exampl
 - Helpers and modules adjacent to `SKILL.md`.
 - Optional: `README.md` (one paragraph), `agents/`, `protocols/`, `hooks/`, `reference/`, `scripts/`.
 
+## Spec diagrams
+
+When authoring a skill's `SKILL.md`/spec, **if a diagram aids the description** (a non-trivial
+architecture, pipeline, state machine, or edge graph), author a d2 diagram per the
+`diagram-authoring` skill — co-resident with the spec, `skills/<name>/spec/<slug>.{d2,png}` (no
+subfolder) — and reference the render from the skill `README.md` with a relative path:
+`![<alt>](spec/<slug>.png)`. For the project `README.md` or other top-level user-facing docs,
+write diagrams to `<repo-root>/docs/diagrams/` and reference `![<alt>](docs/diagrams/<slug>.png)`.
+
+This is **conditional** ("if it helps"), not always-attempt. No `depends-on-skill` edge —
+reference `diagram-authoring` by name and degrade to prose if it or `d2` is absent.
+**`e-readme-layout` coupling:** the README file-layout fence is `field-set-equal` to
+`find skills/<name> -type f`, so a new `spec/<slug>.d2`/`.png` must be listed in that skill's
+README layout fence or `e-readme-layout` fails.
+
 ## Script threshold
 
 - Inline glue and one-off snippets stay inline.

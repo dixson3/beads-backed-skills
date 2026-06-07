@@ -20,7 +20,13 @@ Synthesizes scope + investigation findings into a structured plan document. Writ
 3. Decompose into epics (reviewable units) and issues (single-session tasks). Wire dependencies. Link upstream issues to resolving beads.
 4. Add capability gates only when specific issues require capabilities not present (start gate and reconcile gate are always present when applicable)
 5. Assess risks from findings
-6. Write plan.md per the plan.md structure in the Phase 3: PLAN section of SKILL.md
+6. **Diagram the structure (default for non-trivial plans).** When the plan describes >2
+   interacting components, a lifecycle/state machine, or a data model, author a d2 diagram
+   per the `diagram-authoring` skill into `${plan_dir}/diagrams/<slug>.{d2,png}` and reference
+   the PNG from plan.md (`![<alt>](diagrams/<slug>.png)`). Always attempt at least one for a
+   non-trivial plan; the operator may delete it. Degrade gracefully (prose only) if the skill
+   or `d2` is absent — never add a `depends-on-skill` edge for it.
+7. Write plan.md per the plan.md structure in the Phase 3: PLAN section of SKILL.md
 
 ## Rules
 

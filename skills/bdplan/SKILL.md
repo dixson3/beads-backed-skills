@@ -212,7 +212,7 @@ plan_dir=$(echo "$PLAN_JSON" | uv run ${SKILL_DIR}/scripts/plan_manager.py json-
 
 Plan dirs land under `Incubator/<slug>/plans/<plan-id>/` when an incubator was named, otherwise under `docs/plans/<plan-id>/`. Numbering is global across all roots.
 
-Creates `${plan_dir}/`, `findings/`, `assets/`, `references/`, `reviews/`, initial `plan.md` with `status: scoping`, `README.md` (orientation), and `context.md` (tool-inventory snapshot with hostname+date header). Tool detection is best-effort — missing tools are recorded as `not present` and never block init.
+Creates `${plan_dir}/`, `findings/`, `diagrams/` (d2 diagrams per the `diagram-authoring` skill), `assets/` (attachments, not diagrams), `references/`, `reviews/`, initial `plan.md` with `status: scoping`, `README.md` (orientation), and `context.md` (tool-inventory snapshot with hostname+date header). Tool detection is best-effort — missing tools are recorded as `not present` and never block init.
 
 ### 1.4 — Upstream issue scan
 

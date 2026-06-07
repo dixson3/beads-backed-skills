@@ -139,7 +139,8 @@ Per-plan folder layout after `/bdplan init` (plan root is either `docs/plans/` o
   findings/                  Investigation experiment results
   references/                Inlined upstream issue bodies (one file per non-excluded issue)
   reviews/                   Reviewer verdicts (one file per review pass)
-  assets/                    Diagrams, attachments
+  diagrams/                  d2 diagrams (.d2 source + .png render) per diagram-authoring
+  assets/                    Attachments and generated artifacts (not diagrams)
   scope-answers.md           Scoping questionnaire (complex scoping only)
   upstream-triage.md         Upstream triage working file
 ```

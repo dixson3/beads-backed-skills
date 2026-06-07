@@ -301,6 +301,7 @@ def make_plan_dir(plan_id: str, plans_dir: Path | None = None) -> Path:
     plan_dir = root / plan_id
     (plan_dir / "findings").mkdir(parents=True, exist_ok=True)
     (plan_dir / "assets").mkdir(parents=True, exist_ok=True)
+    (plan_dir / "diagrams").mkdir(parents=True, exist_ok=True)
     return plan_dir
 
 
@@ -425,7 +426,10 @@ files here alone — without access to the drafting conversation.
 - `scope-answers.md` — scoping questionnaire answers (if complex scoping ran).
 - `upstream-triage.md` — upstream disposition working file (source of truth is
   plan.md's Upstream Issues table; this file stays for context).
-- `assets/` — diagrams, attachments, generated artifacts.
+- `diagrams/` — d2 diagrams authored for the plan (`<slug>.d2` source beside `<slug>.png`
+  render), per the `diagram-authoring` skill.
+- `assets/` — attachments and other generated artifacts (not diagrams — those live in
+  `diagrams/`).
 
 ## Reading order
 

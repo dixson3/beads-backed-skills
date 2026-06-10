@@ -16,6 +16,7 @@ Optional (detected at runtime):
 - `gh` — GitHub CLI (upstream issue tracking)
 - `glab` — GitLab CLI (upstream issue tracking)
 - `d2` — diagram renderer for the `diagram-authoring` skill (`.d2` → `.png`; `brew install d2`)
+- `pandoc` + `xelatex` — PDF rendering for the `markdown-pdf` skill (a LaTeX distribution provides `xelatex`)
 
 ## Install
 
@@ -67,7 +68,8 @@ no installer edit is needed when a skill is added or regrouped.
 | `depends-on-skill` | list | **Bare** in-repo skill names this skill needs. The install set is closed over these (transitive pull). A name not found under `skills/*` is warned as external / assumed-provided and skipped. |
 
 **Groups.** `beads` skills depend on the `bd` binary; `utility` skills
-(`optimal-instructions`, `skill-authoring`, `drift-check`) run without it. Install a single group
+(`optimal-instructions`, `skill-authoring`, `drift-check`) run without it; `markdown` skills
+(`markdown-lint`, `markdown-pdf`) are standalone GFM tooling, beads-free. Install a single group
 with `--group <name>` (see [Install](#install)).
 
 **Soft-dep tie-break.** `skill-group` reflects *intended-use coupling*, not just hard tool deps.
@@ -87,6 +89,7 @@ skill — that keeps `--group utility` provably beads-free.
 | [bdplan](skills/bdplan/README.md) | `/bdplan` | Structured planning with beads-tracked execution and upstream issue reconciliation |
 | [bdresearch](skills/bdresearch/) | `/bdresearch` | Multi-phase, beads-tracked deep research producing citation-backed, resumable reports |
 | [incubator](skills/incubator/README.md) | `/incubator` | Create, fork, bookmark, resume, and triage research topics ("incubators") under `Incubator/` |
+| [beads-init](skills/beads-init/README.md) | `/beads-init` | Verify/initialize/repair a functioning beads config — the dependency-verification home other beads skills' preflights route to; fixes wedged migrations and the `bd status` error-JSON false-negative |
 | [beads-extra](skills/beads-extra/) | auto | Advanced/gotcha layer for using the `bd` CLI directly — issue-type semantics, gates, bulk intake, JSON parsing |
 | [beads-authoring](skills/beads-authoring/) | auto | Conventions for building beads-backed skills — `.formula.toml`, `bd mol pour`, coordinator dispatch |
 | [skill-authoring](skills/skill-authoring/README.md) | auto | How to author, structure, and optimize Claude Code skills themselves |
@@ -94,6 +97,8 @@ skill — that keeps `--group utility` provably beads-free.
 | [drift-check](skills/drift-check/README.md) | auto | Verifies content agreement across a repo's declared source-of-truth edges (impl ↔ docs ↔ spec) via a per-repo DRIFT-CHECK.md manifest; reports drift, never auto-fixes |
 | [diagram-authoring](skills/diagram-authoring/README.md) | `/diagram-authoring` | Render light-mode, white-background diagram PNGs from d2 source, with the `.d2` kept beside every `.png`; location-agnostic for plans, research, skill specs, and top-level docs |
 | [beads-upstream](skills/beads-upstream/README.md) | `/beads-upstream` | Configurable, GitHub-first upstream tracking — push open/deferred beads to an issue tracker as a land-the-plane step; upstream issues as the worklist |
+| [markdown-lint](skills/markdown-lint/README.md) | `/markdown-lint` | Conventional GitHub-Flavored-Markdown linter — no Obsidian wiki-links/embeds, resolvable relative links/anchors, well-formed tables |
+| [markdown-pdf](skills/markdown-pdf/README.md) | `/markdown-pdf` | Render a `.md` file to PDF via pandoc + xelatex, tuned for Unicode glyphs and relative image paths |
 
 "auto" skills are not user-invoked directly; they trigger from their `description`
 conditions when relevant work appears.
@@ -153,6 +158,12 @@ Create, fork, bookmark, resume, and triage research topics ("incubators") under 
 
 See [skills/incubator/README.md](skills/incubator/README.md) for full details.
 
+### beads-init
+
+Verify, initialize, and repair a functioning beads configuration — the shared dependency-verification home other beads skills' preflights route to. Its `beads_init.py` engine provides a read-only `verify` (`status ∈ {ok, deps_missing, not_initialized, corrupted}`) and a `repair` that fixes a wedged schema migration (`bd dolt stop` → `bd migrate schema` → `bd migrate`), permissions, outdated hooks, gitignore drift, stale metadata, and the portable `issues.jsonl` export. Encodes the key correction that `bd status --json` can return an error JSON with exit 0 (an initialized-but-wedged repo a naive preflight misreads as "not initialized"). Triggers on `/beads-init`, when standing up beads in a new repo where `bd` is present but the config is missing/incorrect/corrupted, or when another beads skill's preflight reports a deps/init/corruption failure. Ships the always-loaded `protocols/BEADS_INIT.md` trigger contract. Prereqs: `bd` >= 1.0.5, `uv`, `git`.
+
+See [skills/beads-init/README.md](skills/beads-init/README.md).
+
 ### beads-extra
 
 Advanced/gotcha layer for using the `bd` CLI directly at runtime, on top of the canonical beads workflow: issue-type semantics, dependency-edge mutation, gate semantics, defensive JSON parsing, transactional bulk intake (`bd batch`), and `bd mol pour` output shape. Triggers automatically when writing or debugging scripts that call `bd` directly.
@@ -188,3 +199,19 @@ See [skills/beads-upstream/README.md](skills/beads-upstream/README.md).
 Repo-agnostic engine that detects drift between a source of truth and its derivatives (implementation ↔ docs ↔ spec) on edit. The engine is fixed and carries no repo vocabulary; each repository supplies a thin markdown manifest (`DRIFT-CHECK.md` at the repo root) declaring its artifact graph — nodes, source-of-truth edges, per-edge contracts (a fixed six-term vocabulary), changed-path trigger globs, and the fixed-authority policy. On a covered edit the engine dispatches an isolated, report-only sub-agent (`agents/drift-verifier.md`) that checks each scoped edge under a strict evidence standard and returns PASS / FAIL / INCONCLUSIVE / CONFLICT; it never auto-fixes. No approved manifest → silent no-op (no nag); bootstrap is offered only on explicit invocation or first install. Ships an always-loaded companion rule (`protocols/DRIFT-CHECK-TRIGGER.md`) as the firing surface. This repo is the reference instance: its manifest is `DRIFT-CHECK.md` (repo root), the generalized successor to the former `AGENTS/CONSISTENCY.md` + `AGENTS/DOCUMENTATION.md`. Frontmatter: `skill-group: utility`, `depends-on-tool: []`, `depends-on-skill: []` — pulls no `beads` skill, so the no-`utility`→`beads` invariant holds. Scope vs. neighbors: verifies content *agreement* across declared edges, distinct from `skill-authoring` (skill-dir authoring conventions) and `optimal-instructions` (project-root instruction files); never lists CLAUDE.md/AGENTS.md as nodes, so it is structurally silent on the project-root axis.
 
 See [skills/drift-check/README.md](skills/drift-check/README.md).
+
+### markdown-lint
+
+Conventional GitHub-Flavored-Markdown linter (`scripts/markdown_lint.py`, PEP 723 + argparse). Checks that documents are valid GFM with well-formed, resolvable links — no Obsidian wiki-links (`[[...]]`) or embeds (`![[...]]`), valid relative links/anchors, and consistent pipe tables (rules ML001–ML007). Frontmatter, fenced code, and inline code spans are exempt from link checks. Ships `convert_wikilinks.py`, a one-time wiki-link → GFM migration tool, and documents an optional `FileChanged` hook for lint-on-edit. Triggers on `/markdown-lint` or after a generator writes markdown. `skill-group: markdown`, beads-free (`depends-on-tool: [uv]`).
+
+**Usage:** `/markdown-lint [<path> ...] [--rules ML001,...] [--format text|json]`.
+
+See [skills/markdown-lint/README.md](skills/markdown-lint/README.md).
+
+### markdown-pdf
+
+Render a `.md` file to PDF via the pandoc + xelatex pipeline (`scripts/md2pdf.py`, PEP 723 + argparse): xelatex engine, a broad-coverage Unicode main font (so glyphs like →, ≤, ≈ render), 1in margins, blue links, and relative image paths resolved against the source file's directory. PDF-specific table levers — `--table-font` shrink, dash-width column tuning, and a `--landscape-cols` Lua filter that rotates wide tables — handle the usual wide-table pain points. Triggers on `/markdown-pdf` or intent like "export this report to PDF". `skill-group: markdown`; needs `pandoc` + `xelatex` on PATH (`depends-on-tool: [uv, pandoc, xelatex]`).
+
+**Usage:** `uv run .claude/skills/markdown-pdf/scripts/md2pdf.py <input.md> [-o OUT.pdf]`.
+
+See [skills/markdown-pdf/README.md](skills/markdown-pdf/README.md).

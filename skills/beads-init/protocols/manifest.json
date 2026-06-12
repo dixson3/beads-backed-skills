@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "files": {
+    "BEADS_INIT.md": {
+      "sha256": "fc8385fa5bda81b6bdcfa2a88d5e82544fbe5bae67fc98e57d6b7b18350075a3",
+      "version": "1.0.0",
+      "deprecated": false,
+      "previous_versions": []
+    }
+  }
+}

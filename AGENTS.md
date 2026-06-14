@@ -11,6 +11,6 @@ Do NOT use Claude Code memory (`~/.claude/` memory directories). Two tiers:
 
 ## Upstream Tracking
 
-- **Source / repo / tool:** github · `dixson3/beads-backed-skills` · `gh issue`
+- **Source / repo / tool:** github · `dixson3/yoshiko-flow` · `gh issue`
 - **Granularity:** coarse (default). File ONE tracking issue per plan-scale effort (e.g. per `/bdplan` plan), linking the plan + epic — NOT one per execution bead. At land-the-plane, create/update that single coarse issue; do NOT push granular sub-beads upstream unless explicitly asked. Precedent: #13 (plan-005), #14 (plan-006), #16 (plan-007).
 - **Notes:** Issues filed against the published skill repo; this working directory (`beads-skills`) is the same codebase.
